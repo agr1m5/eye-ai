@@ -1,22 +1,14 @@
 /**
  * DashboardPage — Live Operations Dashboard.
  *
- * This page is the heart of Rakshak Live.
- * Current state (Step 2): structural shell with stat cards and panel
- * placeholders. Real data arrives in Step 6 (Socket.IO wiring) and
- * Step 11 (findings ingestion from the agent).
- *
- * Panel layout:
- *   ┌───────────────────────────────────────────┐
- *   │  4 stat cards (threats, incidents, …)     │
- *   ├──────────────────────┬────────────────────┤
- *   │  Live Event Feed     │  Severity Chart    │
- *   ├──────────────────────┴────────────────────┤
- *   │  Process Panel  │  Network Panel          │
- *   └───────────────────────────────────────────┘
+ * Real-time SOC dashboard streaming live findings, threat distributions,
+ * and agent connection statuses.
  */
 import PageWrapper from '@/components/layout/PageWrapper';
-import { Activity, Skull, GitBranch, ShieldOff } from 'lucide-react';
+import LiveEventFeed from '@/components/dashboard/LiveEventFeed';
+import SeverityChart from '@/components/dashboard/SeverityChart';
+import { useLiveStats } from '@/hooks/useLiveStats';
+import { Activity, Skull, GitBranch, ShieldCheck, ShieldAlert, Cpu, Network } from 'lucide-react';
 
 function StatCard({ icon: Icon, label, value, color = 'text-accent-400', subtext }) {
   return (
@@ -33,21 +25,9 @@ function StatCard({ icon: Icon, label, value, color = 'text-accent-400', subtext
   );
 }
 
-function PanelPlaceholder({ title, height = 'h-64' }) {
-  return (
-    <div className={`glass-card glow-border ${height} flex flex-col`}>
-      <div className="flex items-center gap-2 px-4 py-3 border-b border-white/5">
-        <span className="text-xs font-semibold text-slate-400">{title}</span>
-        <span className="text-[10px] text-slate-600 ml-auto">Step 6 wires live data</span>
-      </div>
-      <div className="flex-1 flex items-center justify-center">
-        <p className="text-xs text-slate-700">Awaiting Socket.IO connection…</p>
-      </div>
-    </div>
-  );
-}
-
 export default function DashboardPage() {
+  const { threatCount, eventsPerMin, agentOnline } = useLiveStats(0);
+
   return (
     <PageWrapper
       title="Live Dashboard"
@@ -55,23 +35,67 @@ export default function DashboardPage() {
     >
       {/* Stat row */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-        <StatCard icon={Skull}     label="Threats Detected" value="—" color="text-red-400"    subtext="live count" />
-        <StatCard icon={GitBranch} label="Open Incidents"   value="—" color="text-orange-400" subtext="correlated" />
-        <StatCard icon={Activity}  label="Events / min"     value="—" color="text-accent-400"  subtext="from agent" />
-        <StatCard icon={ShieldOff} label="Agent Status"     value="—" color="text-slate-400"   subtext="connect agent" />
+        <StatCard
+          icon={Skull}
+          label="Threats Detected"
+          value={threatCount}
+          color="text-red-400"
+          subtext="live session total"
+        />
+        <StatCard
+          icon={GitBranch}
+          label="Open Incidents"
+          value="0"
+          color="text-orange-400"
+          subtext="correlated clusters"
+        />
+        <StatCard
+          icon={Activity}
+          label="Events / min"
+          value={eventsPerMin}
+          color="text-accent-400"
+          subtext="rolling rate"
+        />
+        <StatCard
+          icon={agentOnline ? ShieldCheck : ShieldAlert}
+          label="Agent Status"
+          value={agentOnline ? 'ONLINE' : 'OFFLINE'}
+          color={agentOnline ? 'text-emerald-400' : 'text-slate-400'}
+          subtext={agentOnline ? 'receiving telemetry' : 'start agent to connect'}
+        />
       </div>
 
       {/* Main panels */}
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 mb-4">
         <div className="xl:col-span-2">
-          <PanelPlaceholder title="⚡ Live Event Feed" height="h-80" />
+          <LiveEventFeed />
         </div>
-        <PanelPlaceholder title="📊 Severity Distribution" height="h-80" />
+        <SeverityChart />
       </div>
 
+      {/* Secondary monitors */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <PanelPlaceholder title="🔄 Process Monitor" height="h-60" />
-        <PanelPlaceholder title="🌐 Network Connections" height="h-60" />
+        <div className="glass-card glow-border h-48 flex flex-col p-4 justify-between">
+          <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold">
+            <Cpu className="w-4 h-4 text-accent-400" />
+            <span>Process Monitor</span>
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-600 text-xs">
+            <p>System process telemetry active</p>
+            <span className="text-[11px] text-slate-700 mt-1 font-mono">Agent will report anomalous PIDs</span>
+          </div>
+        </div>
+
+        <div className="glass-card glow-border h-48 flex flex-col p-4 justify-between">
+          <div className="flex items-center gap-2 text-slate-400 text-xs font-semibold">
+            <Network className="w-4 h-4 text-accent-400" />
+            <span>Network Sentinel</span>
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center text-slate-600 text-xs">
+            <p>Inbound / Outbound socket monitoring</p>
+            <span className="text-[11px] text-slate-700 mt-1 font-mono">Monitoring suspicious ports & IPs</span>
+          </div>
+        </div>
       </div>
     </PageWrapper>
   );
