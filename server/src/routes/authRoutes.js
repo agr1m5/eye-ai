@@ -1,21 +1,28 @@
+/**
+ * Auth Routes — Step 5
+ *
+ * POST   /api/auth/signup  — create account
+ * POST   /api/auth/login   — authenticate
+ * POST   /api/auth/logout  — clear session (stateless)
+ * GET    /api/auth/me      — return current user (protected)
+ */
 import { Router } from 'express';
-import { authLimiter } from '../middleware/rateLimiter.js';
+import { authLimiter }            from '../middleware/rateLimiter.js';
+import { protect }                from '../middleware/auth.js';
+import {
+  signup,
+  login,
+  logout,
+  getMe,
+  signupValidation,
+  loginValidation,
+} from '../controllers/authController.js';
 
 const router = Router();
 
-// POST /api/auth/signup
-router.post('/signup', authLimiter, (req, res) => {
-  res.status(501).json({ status: 'stub', message: 'Signup endpoint stub (implemented in Step 5)' });
-});
-
-// POST /api/auth/login
-router.post('/login', authLimiter, (req, res) => {
-  res.status(501).json({ status: 'stub', message: 'Login endpoint stub (implemented in Step 5)' });
-});
-
-// POST /api/auth/logout
-router.post('/logout', (req, res) => {
-  res.json({ status: 'success', message: 'Logged out successfully' });
-});
+router.post('/signup', authLimiter, signupValidation, signup);
+router.post('/login',  authLimiter, loginValidation,  login);
+router.post('/logout',                                logout);
+router.get( '/me',     protect,                       getMe);
 
 export default router;

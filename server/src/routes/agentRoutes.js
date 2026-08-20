@@ -1,15 +1,28 @@
+/**
+ * Agent Routes — Step 5
+ *
+ * POST   /api/agent/pair    — generate a one-time pairing token
+ * DELETE /api/agent/pair    — revoke the current pairing token
+ * GET    /api/agent/status  — return current pairing status
+ *
+ * All routes require a valid analyst JWT (protect middleware).
+ */
 import { Router } from 'express';
+import { protect } from '../middleware/auth.js';
+import {
+  pairAgent,
+  revokeAgent,
+  getAgentStatus,
+  pairValidation,
+} from '../controllers/agentController.js';
 
 const router = Router();
 
-// POST /api/agent/pair
-router.post('/pair', (req, res) => {
-  res.json({ status: 'stub', message: 'Agent pairing token issuance stub (implemented in Step 5)' });
-});
+// All agent routes require authentication
+router.use(protect);
 
-// DELETE /api/agent/pair
-router.delete('/pair', (req, res) => {
-  res.json({ status: 'stub', message: 'Agent token revocation stub (implemented in Step 5)' });
-});
+router.post(  '/pair',   pairValidation, pairAgent);
+router.delete('/pair',                   revokeAgent);
+router.get(   '/status',                 getAgentStatus);
 
 export default router;

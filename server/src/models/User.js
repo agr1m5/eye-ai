@@ -72,8 +72,9 @@ userSchema.virtual('password').set(function (plain) {
   this._plainPassword = plain;
 });
 
-/* ── Pre-save hook: hash password if set ────────────────────── */
-userSchema.pre('save', async function (next) {
+/* ── Pre-validate hook: hash password if set ─────────────────── */
+// Must run before 'validate' so the required check on passwordHash passes.
+userSchema.pre('validate', async function (next) {
   if (!this._plainPassword) return next();
   this.passwordHash = await bcrypt.hash(this._plainPassword, SALT_ROUNDS);
   this._plainPassword = undefined;
