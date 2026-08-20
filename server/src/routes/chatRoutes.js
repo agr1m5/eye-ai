@@ -1,30 +1,31 @@
+/**
+ * Chat Routes — Step 7 & 8
+ *
+ * GET    /api/chat             — list conversations
+ * POST   /api/chat             — create new conversation
+ * GET    /api/chat/:id         — get conversation with messages
+ * POST   /api/chat/:id/message — send message & get AI response
+ * DELETE /api/chat/:id         — delete conversation
+ */
 import { Router } from 'express';
+import { protect } from '../middleware/auth.js';
+import {
+  listChats,
+  createChat,
+  getChat,
+  sendMessage,
+  deleteChat,
+} from '../controllers/chatController.js';
 
 const router = Router();
 
-// GET /api/chat
-router.get('/', (req, res) => {
-  res.json({ status: 'success', data: [], message: 'Chat list stub (implemented in Step 7)' });
-});
+// Protect all chat routes with JWT auth
+router.use(protect);
 
-// POST /api/chat
-router.post('/', (req, res) => {
-  res.json({ status: 'stub', message: 'New chat creation stub' });
-});
-
-// GET /api/chat/:id
-router.get('/:id', (req, res) => {
-  res.json({ status: 'stub', message: `Chat ${req.params.id} messages stub` });
-});
-
-// POST /api/chat/:id/message
-router.post('/:id/message', (req, res) => {
-  res.json({ status: 'stub', message: 'Send chat message stub (implemented in Step 8)' });
-});
-
-// DELETE /api/chat/:id
-router.delete('/:id', (req, res) => {
-  res.json({ status: 'stub', message: `Chat ${req.params.id} removed stub` });
-});
+router.get('/', listChats);
+router.post('/', createChat);
+router.get('/:id', getChat);
+router.post('/:id/message', sendMessage);
+router.delete('/:id', deleteChat);
 
 export default router;
