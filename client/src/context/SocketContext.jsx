@@ -49,7 +49,7 @@ export function SocketProvider({ children }) {
     // Create connection with JWT in handshake auth
     const socket = io('/', {
       auth: { token },
-      transports: ['websocket'],
+      transports: ['websocket', 'polling'],
       reconnectionDelay: 1000,
       reconnectionDelayMax: 5000,
     });
