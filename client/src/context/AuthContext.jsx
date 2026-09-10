@@ -1,26 +1,41 @@
 /**
  * AuthContext — provides authentication state globally.
  *
- * Stores the JWT in memory (not localStorage) for security.
- * A single source of truth for: currentUser, token, loading state.
- *
- * We use an httpOnly-cookie-safe pattern here: the JWT is kept in
- * React state so it disappears on page refresh — Step 5 (Auth backend)
- * will pair this with a /auth/refresh endpoint backed by an httpOnly cookie.
+ * Persists analyst session token and user profile in localStorage so
+ * socket subscriptions and protected API calls survive page refreshes.
  */
-import { createContext, useContext, useState, useCallback } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import api from '@/services/api';
 
 const AuthContext = createContext(null);
 
 export function AuthProvider({ children }) {
-  const [user, setUser]   = useState(null);   // { _id, email }
-  const [token, setToken] = useState(null);   // raw JWT string (in-memory only)
+  const [user, setUser] = useState(() => {
+    try {
+      const storedUser = localStorage.getItem('rakshak_user');
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch {
+      return null;
+    }
+  });
+
+  const [token, setToken] = useState(() => {
+    try {
+      const storedToken = localStorage.getItem('rakshak_token');
+      if (storedToken) {
+        api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+      }
+      return storedToken || null;
+    } catch {
+      return null;
+    }
+  });
+
   const [loading, setLoading] = useState(false);
 
   /**
-   * login — calls POST /api/auth/login, stores returned JWT in memory,
-   * wires Axios default header, returns the user object.
+   * login — calls POST /api/auth/login, stores returned JWT,
+   * sets Axios header, and persists to localStorage.
    */
   const login = useCallback(async (email, password) => {
     setLoading(true);
@@ -28,7 +43,8 @@ export function AuthProvider({ children }) {
       const { data } = await api.post('/auth/login', { email, password });
       setUser(data.user);
       setToken(data.token);
-      // Attach token to every subsequent Axios request
+      localStorage.setItem('rakshak_user', JSON.stringify(data.user));
+      localStorage.setItem('rakshak_token', data.token);
       api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
       return data.user;
     } finally {
@@ -50,7 +66,7 @@ export function AuthProvider({ children }) {
   }, [login]);
 
   /**
-   * logout — clears all in-memory auth state and Axios header.
+   * logout — clears all auth state, localStorage, and Axios headers.
    */
   const logout = useCallback(async () => {
     try {
@@ -60,9 +76,21 @@ export function AuthProvider({ children }) {
     } finally {
       setUser(null);
       setToken(null);
+      localStorage.removeItem('rakshak_user');
+      localStorage.removeItem('rakshak_token');
       delete api.defaults.headers.common['Authorization'];
     }
   }, []);
+
+  // Handle unauthorized event dispatched by Axios interceptor
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      logout();
+    };
+
+    window.addEventListener('rakshak:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('rakshak:unauthorized', handleUnauthorized);
+  }, [logout]);
 
   const value = { user, token, loading, login, signup, logout, isAuthenticated: !!token };
 

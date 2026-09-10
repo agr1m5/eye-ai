@@ -15,6 +15,17 @@ const api = axios.create({
   headers: { 'Content-Type': 'application/json' },
 });
 
+/* ── Request interceptor ────────────────────────────────────── */
+api.interceptors.request.use((reqConfig) => {
+  try {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('rakshak_token') : null;
+    if (token) {
+      reqConfig.headers['Authorization'] = `Bearer ${token}`;
+    }
+  } catch {}
+  return reqConfig;
+});
+
 /* ── Response interceptor ───────────────────────────────────── */
 api.interceptors.response.use(
   (res) => res,

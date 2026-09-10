@@ -74,7 +74,7 @@ export default function SettingsPage() {
         toast.success('Agent pairing token generated');
       }
     } catch (err) {
-      toast.error('Failed to generate agent token');
+      toast.error(err.response?.data?.message || 'Failed to generate agent token');
     } finally {
       setIssuing(false);
     }
