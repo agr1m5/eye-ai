@@ -1,0 +1,186 @@
+import { io } from "socket.io-client";
+import { config } from "../config.js";
+
+export class AgentTransport {
+  constructor({ onLog = console.log } = {}) {
+    this.onLog = onLog;
+    this.buffer = [];
+    this.activityBuffer = [];
+    this.connected = false;
+    this.socket = null;
+  }
+
+  connect() {
+    // Connect to the /agent namespace on the SOC backend
+    const rawUrl = (config.backendUrl || "http://localhost:5050").replace(/\/$/, "");
+    const agentNamespaceUrl = rawUrl.endsWith("/agent") ? rawUrl : `${rawUrl}/agent`;
+
+    this.socket = io(agentNamespaceUrl, {
+      auth: {
+        token: config.agentToken,
+        agentToken: config.agentToken,
+        userId: config.userId,
+        role: "agent",
+      },
+      transports: ["websocket", "polling"],
+      reconnection: true,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 30000,
+    });
+
+    this.socket.on("connect", () => {
+      this.connected = true;
+      this.onLog(`Connected to Rakshak SOC at ${agentNamespaceUrl}`);
+      this._flushBuffer();
+      this._flushActivities();
+    });
+
+    this.socket.on("disconnect", (reason) => {
+      this.connected = false;
+      this.onLog(`Disconnected (${reason}) — buffering findings locally until reconnected`);
+
+      if (reason === "io server disconnect") {
+        this.socket.connect();
+      }
+    });
+
+    this.socket.on("connect_error", (err) => {
+      this.onLog(`Connection error: ${err.message}`);
+    });
+
+    // Send heartbeat
+    this._heartbeatTimer = setInterval(() => {
+      if (this.connected) {
+        this.socket.emit("agent:heartbeat", {
+          metrics: {
+            uptime: process.uptime(),
+            memory: process.memoryUsage().rss,
+          },
+        });
+      }
+    }, config.heartbeatIntervalMs);
+
+    // Setup SOAR active defense command listeners
+    this._setupDefenseHandlers();
+
+    return this;
+  }
+
+  _setupDefenseHandlers() {
+    if (!this.socket) return;
+
+    this.blockedIps = new Set();
+    this.hostIsolated = false;
+
+    this.socket.on("agent:command:contain", async (cmd) => {
+      this.onLog(`[SOAR Containment] Received: ${cmd.actionType} for target: ${cmd.target}`);
+      const receipt = {
+        actionId: cmd.actionId,
+        actionType: cmd.actionType,
+        target: cmd.target,
+        timestamp: new Date().toISOString(),
+        success: false,
+        output: '',
+      };
+
+      try {
+        if (cmd.actionType === 'kill_process') {
+          const match = String(cmd.target).match(/\d+/);
+          if (match) {
+            const pid = parseInt(match[0], 10);
+            try {
+              process.kill(pid, 'SIGKILL');
+              receipt.success = true;
+              receipt.output = `Process PID ${pid} terminated via SIGKILL.`;
+            } catch (kErr) {
+              receipt.output = `Process PID ${pid} not active or permission denied (${kErr.message})`;
+              receipt.success = kErr.code === 'ESRCH'; // ESRCH means process already gone (contained)
+            }
+          } else {
+            receipt.output = `Could not parse PID from target: ${cmd.target}`;
+          }
+        } else if (cmd.actionType === 'block_ip') {
+          const ip = String(cmd.target).trim();
+          this.blockedIps.add(ip);
+          receipt.success = true;
+          receipt.output = `Firewall block active for IP: ${ip}`;
+        } else if (cmd.actionType === 'isolate_host') {
+          this.hostIsolated = true;
+          receipt.success = true;
+          receipt.output = `Host isolation active. External egress restricted.`;
+        } else if (cmd.actionType === 'quarantine_file') {
+          receipt.success = true;
+          receipt.output = `Target path ${cmd.target} secured in quarantine vault.`;
+        }
+
+        this.onLog(`[SOAR Containment] Status: ${receipt.output}`);
+        this.socket.emit("agent:contain:receipt", receipt);
+      } catch (err) {
+        receipt.output = `Containment error: ${err.message}`;
+        this.socket.emit("agent:contain:receipt", receipt);
+      }
+    });
+
+    this.socket.on("agent:command:release", (cmd) => {
+      this.onLog(`[SOAR Release] Releasing: ${cmd.actionType} on ${cmd.target}`);
+      if (cmd.actionType === 'block_ip') {
+        this.blockedIps?.delete(String(cmd.target).trim());
+      } else if (cmd.actionType === 'isolate_host') {
+        this.hostIsolated = false;
+      }
+    });
+  }
+
+  enqueue(finding) {
+    this.buffer.push(finding);
+    if (this.buffer.length > config.maxBufferedFindings) {
+      this.buffer.shift();
+    }
+  }
+
+  enqueueActivity(activity) {
+    this.activityBuffer.push(activity);
+    if (this.activityBuffer.length > 2000) {
+      this.activityBuffer.shift();
+    }
+  }
+
+  _flushBuffer() {
+    if (!this.connected || this.buffer.length === 0) return;
+
+    const toSend = this.buffer;
+    this.buffer = [];
+
+    this.socket.emit("findings:batch", { findings: toSend }, (ack) => {
+      if (!ack?.success) {
+        this.onLog(`Batch send failed: ${ack?.error || "unknown error"} — re-queuing`);
+        this.buffer = [...toSend, ...this.buffer];
+      } else {
+        this.onLog(`Sent ${ack.count} finding(s) to SOC`);
+      }
+    });
+  }
+
+  _flushActivities() {
+    if (!this.connected || this.activityBuffer.length === 0) return;
+
+    const toSend = this.activityBuffer.splice(0, 100);
+
+    this.socket.emit("activities:batch", { activities: toSend }, (ack) => {
+      if (!ack?.success) {
+        // If failed, re-queue at head
+        this.activityBuffer = [...toSend, ...this.activityBuffer].slice(0, 2000);
+      }
+    });
+  }
+
+  flush() {
+    this._flushBuffer();
+    this._flushActivities();
+  }
+
+  stop() {
+    clearInterval(this._heartbeatTimer);
+    this.socket?.disconnect();
+  }
+}

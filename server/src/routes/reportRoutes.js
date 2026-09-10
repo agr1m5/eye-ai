@@ -1,25 +1,29 @@
+/**
+ * Report Routes
+ *
+ * GET    /api/reports               — list all reports
+ * POST   /api/reports               — generate a new PDF report (async)
+ * GET    /api/reports/:id/download  — stream the finished PDF
+ * DELETE /api/reports/:id           — delete report + PDF file
+ *
+ * All routes require a valid analyst JWT.
+ */
 import { Router } from 'express';
+import { protect } from '../middleware/auth.js';
+import {
+  listReports,
+  generateReport,
+  downloadReport,
+  deleteReport,
+} from '../controllers/reportController.js';
 
 const router = Router();
 
-// GET /api/reports
-router.get('/', (req, res) => {
-  res.json({ status: 'success', data: [], message: 'Reports list stub (implemented in Step 13)' });
-});
+router.use(protect);
 
-// POST /api/reports
-router.post('/', (req, res) => {
-  res.json({ status: 'stub', message: 'Generate PDF report stub (implemented in Step 13)' });
-});
-
-// GET /api/reports/:id/download
-router.get('/:id/download', (req, res) => {
-  res.status(501).json({ status: 'stub', message: 'Report download stub' });
-});
-
-// DELETE /api/reports/:id
-router.delete('/:id', (req, res) => {
-  res.json({ status: 'stub', message: `Report ${req.params.id} deleted stub` });
-});
+router.get('/',                listReports);
+router.post('/',               generateReport);
+router.get('/:id/download',    downloadReport);
+router.delete('/:id',          deleteReport);
 
 export default router;

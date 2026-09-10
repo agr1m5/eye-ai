@@ -9,6 +9,7 @@ import { useSocket } from '@/context/SocketContext';
 import SeverityBadge from '@/components/common/SeverityBadge';
 import { Activity, ShieldAlert, Terminal } from 'lucide-react';
 import { format } from 'date-fns';
+import { getHumanThreat, getHumanSource } from '@/utils/threatFormatter';
 
 export default function LiveEventFeed({ initialEvents = [] }) {
   const { subscribe, connected } = useSocket();
@@ -58,8 +59,9 @@ export default function LiveEventFeed({ initialEvents = [] }) {
           </div>
         ) : (
           events.map((evt, idx) => {
+            const human = getHumanThreat(evt.type, evt);
             const timeStr = evt.createdAt ? format(new Date(evt.createdAt), 'HH:mm:ss') : format(new Date(), 'HH:mm:ss');
-            const sourceText = evt.source?.ip || evt.source?.hostname || evt.source?.processName || 'local-agent';
+            const sourceText = getHumanSource(evt.source);
 
             return (
               <div
@@ -69,12 +71,10 @@ export default function LiveEventFeed({ initialEvents = [] }) {
                 <div className="flex items-center gap-2.5 min-w-0">
                   <span className="text-[10px] text-slate-500 shrink-0">{timeStr}</span>
                   <SeverityBadge severity={evt.severity} showIcon={false} />
-                  <span className="text-slate-200 font-medium truncate">{evt.type}</span>
-                  {evt.description && (
-                    <span className="text-slate-500 truncate hidden md:inline text-[11px]">
-                      — {evt.description}
-                    </span>
-                  )}
+                  <span className="text-slate-200 font-medium truncate">{human.title}</span>
+                  <span className="text-slate-500 truncate hidden md:inline text-[11px] font-mono">
+                    ({evt.type})
+                  </span>
                 </div>
 
                 <div className="flex items-center gap-2 shrink-0">

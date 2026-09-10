@@ -1,25 +1,29 @@
+/**
+ * Threat Intelligence Routes
+ *
+ * GET /api/ti/ip/:ip               — IP reputation lookup (VirusTotal / heuristic)
+ * GET /api/ti/cve/:cveId           — CVE detail from NVD
+ * GET /api/ti/mitre/:techniqueId   — MITRE ATT&CK technique detail
+ * GET /api/ti/owasp/:category      — OWASP Top 10 category info
+ *
+ * All routes require a valid analyst JWT.
+ */
 import { Router } from 'express';
+import { protect } from '../middleware/auth.js';
+import {
+  lookupIP,
+  lookupCVE,
+  lookupMITRE,
+  lookupOWASP,
+} from '../controllers/tiController.js';
 
 const router = Router();
 
-// GET /api/ti/ip/:ip
-router.get('/ip/:ip', (req, res) => {
-  res.json({ status: 'stub', ip: req.params.ip, message: 'VirusTotal IP lookup stub (implemented in Step 12)' });
-});
+router.use(protect);
 
-// GET /api/ti/cve/:cveId
-router.get('/cve/:cveId', (req, res) => {
-  res.json({ status: 'stub', cveId: req.params.cveId, message: 'CVE NVD lookup stub (implemented in Step 12)' });
-});
-
-// GET /api/ti/mitre/:techniqueId
-router.get('/mitre/:techniqueId', (req, res) => {
-  res.json({ status: 'stub', techniqueId: req.params.techniqueId, message: 'MITRE ATT&CK lookup stub (implemented in Step 12)' });
-});
-
-// GET /api/ti/owasp/:category
-router.get('/owasp/:category', (req, res) => {
-  res.json({ status: 'stub', category: req.params.category, message: 'OWASP Top 10 mapping stub (implemented in Step 12)' });
-});
+router.get('/ip/:ip',                 lookupIP);
+router.get('/cve/:cveId',             lookupCVE);
+router.get('/mitre/:techniqueId',     lookupMITRE);
+router.get('/owasp/:category',        lookupOWASP);
 
 export default router;

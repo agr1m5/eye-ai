@@ -1,20 +1,32 @@
+/**
+ * Incident Routes
+ *
+ * GET    /api/incidents           — paginated list with filters
+ * POST   /api/incidents           — manually create an incident
+ * GET    /api/incidents/:id       — single incident with threats populated
+ * PATCH  /api/incidents/:id/status — update incident status
+ * PATCH  /api/incidents/:id/notes  — update analyst notes
+ *
+ * All routes require a valid analyst JWT.
+ */
 import { Router } from 'express';
+import { protect } from '../middleware/auth.js';
+import {
+  listIncidents,
+  getIncident,
+  createIncident,
+  updateIncidentStatus,
+  updateIncidentNotes,
+} from '../controllers/incidentController.js';
 
 const router = Router();
 
-// GET /api/incidents
-router.get('/', (req, res) => {
-  res.json({ status: 'success', data: [], message: 'Incidents list stub (implemented in Step 11)' });
-});
+router.use(protect);
 
-// GET /api/incidents/:id
-router.get('/:id', (req, res) => {
-  res.json({ status: 'stub', message: `Incident ${req.params.id} detail stub` });
-});
-
-// PATCH /api/incidents/:id/status
-router.patch('/:id/status', (req, res) => {
-  res.json({ status: 'stub', message: `Incident ${req.params.id} status updated stub` });
-});
+router.get('/',                  listIncidents);
+router.post('/',                 createIncident);
+router.get('/:id',               getIncident);
+router.patch('/:id/status',      updateIncidentStatus);
+router.patch('/:id/notes',       updateIncidentNotes);
 
 export default router;

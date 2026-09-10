@@ -33,6 +33,7 @@ export function SocketProvider({ children }) {
   const [connected, setConnected]   = useState(false);
   const [agentOnline, setAgentOnline] = useState(false);
   const [agentLastSeen, setAgentLastSeen] = useState(null);
+  const [agentMetrics, setAgentMetrics] = useState(null);
 
   // Initialize / teardown socket when auth token changes
   useEffect(() => {
@@ -59,9 +60,10 @@ export function SocketProvider({ children }) {
     socket.on('disconnect', () => setConnected(false));
 
     // Agent heartbeat / status events (§5.2)
-    socket.on('agent:status', ({ connected: agentConn, lastSeen }) => {
+    socket.on('agent:status', ({ connected: agentConn, lastSeen, metrics }) => {
       setAgentOnline(agentConn);
       if (lastSeen) setAgentLastSeen(new Date(lastSeen));
+      if (metrics) setAgentMetrics(metrics);
     });
 
     return () => {
@@ -90,6 +92,7 @@ export function SocketProvider({ children }) {
     connected,
     agentOnline,
     agentLastSeen,
+    agentMetrics,
     subscribe,
   };
 

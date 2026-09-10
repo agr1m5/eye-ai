@@ -7,13 +7,19 @@
     "agent",
     "packages/*"
   ],
+  "main": "electron/main.cjs",
   "scripts": {
+    "start": "bash start.sh",
     "client": "npm run dev --workspace=client",
     "server": "npm run dev --workspace=server",
     "agent": "npm run start --workspace=agent",
-    "dev": "concurrently \"npm run client\" \"npm run server\""
+    "dev": "concurrently \"npm run client\" \"npm run server\"",
+    "all": "concurrently -n \"CLIENT,SERVER,AGENT\" -c \"cyan,magenta,green\" \"npm run client\" \"npm run server\" \"npm run agent\"",
+    "app": "electron .",
+    "app:all": "concurrently \"npm run dev\" \"npm run agent\" \"electron .\""
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "electron": "^44.3.0"
   }
 }

@@ -32,25 +32,34 @@ api.interceptors.response.use(
 
 // Auth
 export const authApi = {
-  signup:    (data)  => api.post('/auth/signup', data),
-  login:     (data)  => api.post('/auth/login', data),
-  logout:    ()      => api.post('/auth/logout'),
-  pairAgent: ()      => api.post('/agent/pair'),
-  revokeAgent: ()    => api.delete('/agent/pair'),
+  signup:            (data)    => api.post('/auth/signup', data),
+  login:             (data)    => api.post('/auth/login', data),
+  logout:            ()        => api.post('/auth/logout'),
+  me:                ()        => api.get('/auth/me'),
+  updatePreferences: (prefs)   => api.patch('/auth/preferences', prefs),
+  pairAgent:         (label)   => api.post('/agent/pair', { label }),
+  revokeAgent:       ()        => api.delete('/agent/pair'),
+  agentStatus:       ()        => api.get('/agent/status'),
 };
 
 // Threats
 export const threatApi = {
-  list:    (params) => api.get('/threats', { params }),
-  get:     (id)     => api.get(`/threats/${id}`),
-  dismiss: (id)     => api.delete(`/threats/${id}`),
+  list:         (params)         => api.get('/threats', { params }),
+  stats:        ()               => api.get('/threats/stats'),
+  timeline:     (window = 60)    => api.get('/threats/timeline', { params: { window } }),
+  get:          (id)             => api.get(`/threats/${id}`),
+  updateStatus: (id, status)     => api.patch(`/threats/${id}/status`, { status }),
+  dismiss:      (id)             => api.delete(`/threats/${id}`),
+  simulate:     (data)           => api.post('/threats/simulate', data),
 };
 
 // Correlated Incidents
 export const incidentApi = {
-  list:       (params) => api.get('/incidents', { params }),
-  get:        (id)     => api.get(`/incidents/${id}`),
-  updateStatus: (id, status) => api.patch(`/incidents/${id}/status`, { status }),
+  list:         (params)        => api.get('/incidents', { params }),
+  create:       (body)          => api.post('/incidents', body),
+  get:          (id)            => api.get(`/incidents/${id}`),
+  updateStatus: (id, status)    => api.patch(`/incidents/${id}/status`, { status }),
+  updateNotes:  (id, notes)     => api.patch(`/incidents/${id}/notes`, { notes }),
 };
 
 // Chat
@@ -85,6 +94,26 @@ export const logApi = {
   }),
   list:    ()         => api.get('/logs'),
   threats: (id)       => api.get(`/logs/${id}/threats`),
+};
+
+// Analyst Audit Log
+export const auditApi = {
+  list: (params) => api.get('/audit', { params }),
+};
+
+export const activitiesApi = {
+  list:        (params) => api.get('/activities', { params }),
+  stats:       ()       => api.get('/activities/stats'),
+  clear:       ()       => api.delete('/activities'),
+  suggestions: (id, data) => api.post(`/activities/${id}/suggestions`, data),
+  analyze:     (data)   => api.post('/activities/suggestions', data),
+};
+
+// Active Defense & SOAR Containment
+export const defenseApi = {
+  contain: (data)   => api.post('/defense/contain', data),
+  actions: (params) => api.get('/defense/actions', { params }),
+  release: (id)     => api.post(`/defense/${id}/release`),
 };
 
 export default api;

@@ -1,0 +1,25 @@
+[Unit]
+Description=Rakshak Live Local Endpoint Security Telemetry Agent
+Documentation=https://github.com/agr1m5/log-sage
+After=network-online.target systemd-journald.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/opt/rakshak/agent
+ExecStart=/usr/bin/node src/index.js
+Restart=always
+RestartSec=5s
+
+# Security hardening
+ProtectSystem=full
+ProtectHome=read-only
+NoNewPrivileges=false
+
+# Environment variables
+Environment=NODE_ENV=production
+EnvironmentFile=-/opt/rakshak/agent/.env
+
+[Install]
+WantedBy=multi-user.target

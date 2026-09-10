@@ -23,6 +23,7 @@ import bcrypt   from 'bcryptjs';
 import { body, validationResult } from 'express-validator';
 
 import User from '../models/User.js';
+import { createAuditEntry } from '../services/auditService.js';
 
 const SALT_ROUNDS       = 12;
 const TOKEN_BYTES       = 32;
@@ -63,6 +64,15 @@ export async function pairAgent(req, res, next) {
     });
 
     // Return the plain token ONCE — it cannot be recovered after this response
+    createAuditEntry({
+      userId:     req.user._id,
+      action:     'agent.paired',
+      targetType: 'User',
+      targetId:   req.user._id,
+      metadata:   { label: label || 'Local Agent' },
+      ip:         req.ip,
+    });
+
     return res.status(200).json({
       status:  'success',
       message: 'Agent pairing token generated. Save this token — it will not be shown again.',
@@ -82,6 +92,15 @@ export async function revokeAgent(req, res, next) {
       agentTokenHash:      null,
       agentTokenExpiresAt: null,
       agentLabel:          null,
+    });
+
+    createAuditEntry({
+      userId:     req.user._id,
+      action:     'agent.revoked',
+      targetType: 'User',
+      targetId:   req.user._id,
+      metadata:   {},
+      ip:         req.ip,
     });
 
     return res.status(200).json({

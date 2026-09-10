@@ -8,16 +8,34 @@
  */
 import { config } from '../config/env.js';
 
-const SYSTEM_PROMPT = `You are Rakshak AI, an elite Tier-3 SOC Analyst and Threat Hunting Assistant.
+const SYSTEM_PROMPT = `You are Rakshak AI, an elite Tier-3 Autonomous SOC Analyst and Active Defense Command Assistant.
 You provide precise, actionable, and technically rigorous security guidance.
 Format your responses with clear markdown headings, bullet points, and code snippets when helpful.
-Include relevant MITRE ATT&CK technique IDs (e.g. T1059), severity ratings, and concrete mitigation steps.`;
+Include relevant MITRE ATT&CK technique IDs (e.g. T1059), severity ratings, and concrete mitigation steps.
+
+ACTIVE DEFENSE CAPABILITIES:
+When investigating threats or when an analyst requests containment, you can suggest executable countermeasure cards using this tag format:
+[ACTION:block_ip:TARGET_IP] — Block an offending IP at the firewall
+[ACTION:kill_process:TARGET_PID] — Terminate a compromised process PID via SIGKILL
+[ACTION:isolate_host:HOST_NAME] — Isolate the host endpoint from external egress
+
+The Rakshak interface renders interactive one-click SOAR execution buttons for these action tags.`;
 
 /**
  * Embedded Knowledge Engine for offline or fallback SOC guidance.
  */
-function getExpertKnowledgeResponse(query) {
-  const q = query.toLowerCase();
+function getExpertKnowledgeResponse(query, messages = []) {
+  let q = (query || '').toLowerCase().trim();
+
+  // If follow-up query like "more", "why", "continue", merge with preceding user message
+  if ((q === 'more' || q.includes('more') || q === 'why' || q === 'continue' || q === 'how' || q.length < 6) && messages.length > 1) {
+    for (let i = messages.length - 2; i >= 0; i--) {
+      if (messages[i].role === 'user' && messages[i].content && messages[i].content.length > 3) {
+        q = `${messages[i].content.toLowerCase()} ${q}`;
+        break;
+      }
+    }
+  }
 
   if (q.includes('sql injection') || q.includes('sqli')) {
     return `### 🛡️ SQL Injection (SQLi) — Threat & Mitigation Analysis
@@ -160,18 +178,37 @@ export async function generateSecurityResponse({ messages = [], contextThreats =
   // 1. Try Ollama if configured
   if (config.aiProvider === 'ollama' && config.ollamaBaseUrl) {
     try {
+      let modelToUse = config.ollamaModel || 'llama3.2:latest';
+
+      // Auto-detect installed model if configured model isn't found
+      try {
+        const tagsRes = await fetch(`${config.ollamaBaseUrl}/api/tags`, { signal: AbortSignal.timeout(2000) });
+        if (tagsRes.ok) {
+          const tagsData = await tagsRes.json();
+          const availableModels = (tagsData?.models || []).map((m) => m.name);
+          if (availableModels.length > 0 && !availableModels.includes(modelToUse)) {
+            const matched = availableModels.find((m) => m.includes('llama') || m.includes('mistral') || m.includes('phi')) || availableModels[0];
+            if (matched) modelToUse = matched;
+          }
+        }
+      } catch {}
+
       const response = await fetch(`${config.ollamaBaseUrl}/api/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          model: config.ollamaModel || 'llama3',
+          model: modelToUse,
           messages: [
             { role: 'system', content: SYSTEM_PROMPT },
             ...messages.map((m) => ({ role: m.role, content: m.content })),
           ],
+          options: {
+            num_predict: 350,
+            temperature: 0.6,
+          },
           stream: false,
         }),
-        signal: AbortSignal.timeout(6000), // 6s timeout before fallback
+        signal: AbortSignal.timeout(60000), // 60s timeout for local LLM inference
       });
 
       if (response.ok) {
@@ -180,12 +217,12 @@ export async function generateSecurityResponse({ messages = [], contextThreats =
           return {
             content: data.message.content,
             provider: 'ollama',
-            model: config.ollamaModel || 'llama3',
+            model: modelToUse,
           };
         }
       }
     } catch (err) {
-      console.warn(`[AIService] Ollama unreachable (${err.message}). Using Expert Knowledge Engine.`);
+      console.warn(`[AIService] Ollama query failed (${err.message}). Using Expert Knowledge Engine.`);
     }
   }
 
@@ -226,9 +263,177 @@ export async function generateSecurityResponse({ messages = [], contextThreats =
 
   // 3. Fallback to Embedded Expert Cybersecurity Knowledge Engine
   return {
-    content: getExpertKnowledgeResponse(latestMessage),
+    content: getExpertKnowledgeResponse(latestMessage, messages),
     provider: 'rakshak-expert-engine',
     model: 'soc-analyst-v2',
+  };
+}
+
+/**
+ * Generate contextual security suggestions and assistance for a host activity event.
+ */
+export async function generateActivitySuggestions({ activity }) {
+  if (!activity) {
+    return {
+      safetyVerdict: 'safe',
+      badgeText: 'Standard Activity',
+      summary: 'No activity details provided.',
+      explanation: 'General system background activity.',
+      recommendations: ['Maintain regular security updates.'],
+      remediationCommands: [],
+    };
+  }
+
+  const { source, action = '', description = '', actor = 'system', ip, isThreat, severity, metadata = {} } = activity;
+  const descLower = description.toLowerCase();
+  const pid = metadata.pid || metadata.PID || null;
+  const command = metadata.command || description;
+
+  // 1. If already flagged as threat
+  if (isThreat || (severity && severity !== 'none' && severity !== 'low')) {
+    return {
+      safetyVerdict: 'threat',
+      badgeText: `Security Threat (${(severity || 'high').toUpperCase()})`,
+      summary: `This activity triggered a security alert for "${activity.threatType || 'suspicious activity'}".`,
+      explanation: `Rakshak detected an anomalous pattern: ${description}. This may indicate unauthorized execution, remote injection, or privilege escalation.`,
+      recommendations: [
+        'Isolate the host or suspend the active process immediately.',
+        pid ? `Inspect child/parent processes associated with PID ${pid}.` : 'Investigate the initiating executable.',
+        ip ? `Block external IP ${ip} on host and border firewalls.` : 'Review authentication logs for unauthorized sessions.',
+        'Preserve system audit logs and generate an incident report.',
+      ],
+      remediationCommands: [
+        pid ? `sudo kill -9 ${pid}` : null,
+        ip ? `sudo ufw deny from ${ip} to any` : null,
+        pid ? `lsof -p ${pid}` : null,
+      ].filter(Boolean),
+    };
+  }
+
+  // 2. Network connection analysis
+  if (source === 'network' || action.startsWith('connection')) {
+    const isLocal = !ip || ip.startsWith('127.') || ip === '::1' || ip === 'localhost';
+    const isPrivate = ip && (ip.startsWith('10.') || ip.startsWith('192.168.') || /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(ip));
+
+    if (isLocal) {
+      return {
+        safetyVerdict: 'safe',
+        badgeText: 'Internal Loopback (Safe)',
+        summary: `Local inter-process communication on loopback address (${ip || '127.0.0.1'}).`,
+        explanation: `Application "${metadata.command || 'process'}" is communicating with a local service on your machine. Localhost socket traffic is standard for browsers, development servers, and desktop software.`,
+        recommendations: [
+          'No defensive action required; this is standard internal system operation.',
+          pid ? `Verify application identity: run 'ps -fp ${pid}' to confirm binary origin.` : 'Verify application path if unfamiliar.',
+        ],
+        remediationCommands: [
+          pid ? `ps -fp ${pid}` : null,
+          metadata.localPort ? `lsof -i :${metadata.localPort}` : null,
+        ].filter(Boolean),
+      };
+    }
+
+    if (isPrivate) {
+      return {
+        safetyVerdict: 'low-risk',
+        badgeText: 'Local Network (LAN)',
+        summary: `Connection to local private subnet device (${ip}).`,
+        explanation: `Application is interacting with a device inside your local area network (router, printer, or local subnet peer).`,
+        recommendations: [
+          'Confirm that the destination IP belongs to an authorized internal subnet resource.',
+          'Ensure local network services require password authentication.',
+        ],
+        remediationCommands: [
+          `ping -c 3 ${ip}`,
+          pid ? `lsof -p ${pid}` : null,
+        ].filter(Boolean),
+      };
+    }
+
+    // External Internet IP
+    const isStandardWeb = metadata.remotePort === '443' || metadata.remotePort === '80';
+    return {
+      safetyVerdict: isStandardWeb ? 'safe' : 'caution',
+      badgeText: isStandardWeb ? 'Outbound HTTPS (Standard)' : 'External Connection (Inspect)',
+      summary: `Application "${metadata.command || 'process'}" connected to remote internet IP ${ip}:${metadata.remotePort || '443'}.`,
+      explanation: `Outbound internet socket established over ${isStandardWeb ? 'secure TLS/HTTPS' : `port ${metadata.remotePort}`}. Typical for cloud APIs, web browsing, package downloads, and background telemetry.`,
+      recommendations: [
+        `Verify destination host identity using reverse DNS or WHOIS lookup.`,
+        `If this connection was not user-initiated, verify the initiating process binary with 'which ${metadata.command || 'app'}'.`,
+        !isStandardWeb ? `Port ${metadata.remotePort} is non-standard for web traffic — verify why this application uses it.` : 'Check if TLS certificates are valid and uncompromised.',
+      ],
+      remediationCommands: [
+        `whois ${ip}`,
+        pid ? `lsof -i @${ip}` : null,
+        `sudo ufw deny out to ${ip}`,
+      ].filter(Boolean),
+    };
+  }
+
+  // 3. Process execution analysis
+  if (source === 'process' || action.startsWith('process')) {
+    const isDevTool = descLower.includes('node') || descLower.includes('npm') || descLower.includes('vite') || descLower.includes('python');
+    const isBrowser = descLower.includes('brave') || descLower.includes('chrome') || descLower.includes('safari') || descLower.includes('firefox') || descLower.includes('electron');
+
+    if (isDevTool) {
+      return {
+        safetyVerdict: 'safe',
+        badgeText: 'Developer Runtime (Safe)',
+        summary: `Active development runtime process: ${command.slice(0, 60)}.`,
+        explanation: `This process was spawned as part of your Node.js, Python, or local project environment. It is normal development activity.`,
+        recommendations: [
+          'Verify project dependencies in package.json to prevent typosquatting attacks.',
+          'Run audits periodically using `npm audit` or `pip check`.',
+        ],
+        remediationCommands: [
+          pid ? `ps -fp ${pid}` : null,
+          pid ? `kill -9 ${pid}` : null,
+        ].filter(Boolean),
+      };
+    }
+
+    if (isBrowser) {
+      return {
+        safetyVerdict: 'safe',
+        badgeText: 'Web Browser Process (Safe)',
+        summary: `Web browser execution: ${command.slice(0, 60)}.`,
+        explanation: `Modern browsers use multi-process architectures (rendering tabs, GPU acceleration, and extensions in isolated helper sandboxes).`,
+        recommendations: [
+          'Keep your web browser updated to the latest version to patch zero-day vulnerabilities.',
+          'Review installed browser extensions for excessive permission requests.',
+        ],
+        remediationCommands: [
+          pid ? `ps -fp ${pid}` : null,
+        ].filter(Boolean),
+      };
+    }
+
+    return {
+      safetyVerdict: 'safe',
+      badgeText: 'Verified Endpoint Process',
+      summary: `Standard host process execution: ${command.slice(0, 60)}.`,
+      explanation: `Process is running under user "${actor}". System utilities and background daemons run continuously to support OS features and active desktop software.`,
+      recommendations: [
+        'Confirm process executable originates from standard directories (/usr/bin, /Applications, /usr/local/bin).',
+        'Verify running user matches appropriate privilege boundaries.',
+      ],
+      remediationCommands: [
+        pid ? `ps -fp ${pid}` : null,
+        pid ? `lsof -p ${pid}` : null,
+      ].filter(Boolean),
+    };
+  }
+
+  // 4. System logs / fallback
+  return {
+    safetyVerdict: 'safe',
+    badgeText: 'System Event (Normal)',
+    summary: `Host operating system log event: ${description.slice(0, 60)}.`,
+    explanation: `Recorded by host security auditing subsystem. Periodic authentication status checks and daemon health checks are expected.`,
+    recommendations: [
+      'Ensure sudo sessions and administrative elevations are monitored.',
+      'Check system log integrity regularly.',
+    ],
+    remediationCommands: [],
   };
 }
 

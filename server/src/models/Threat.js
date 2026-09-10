@@ -29,6 +29,19 @@ const sourceSchema = new mongoose.Schema(
   { _id: false }
 );
 
+/* ── Sub-schema: GeoIP enrichment (optional) ─────────────────── */
+const geoSchema = new mongoose.Schema(
+  {
+    country:     { type: String, default: null },
+    countryCode: { type: String, default: null },  // ISO 3166-1 alpha-2, e.g. 'CN'
+    city:        { type: String, default: null },
+    isp:         { type: String, default: null },
+    lat:         { type: Number, default: null },
+    lon:         { type: Number, default: null },
+  },
+  { _id: false }
+);
+
 /* ── Main Schema ─────────────────────────────────────────────── */
 const threatSchema = new mongoose.Schema(
   {
@@ -99,6 +112,12 @@ const threatSchema = new mongoose.Schema(
     importedLogId: {
       type:    mongoose.Schema.Types.ObjectId,
       ref:     'ImportedLog',
+      default: null,
+    },
+
+    // GeoIP enrichment — auto-populated from ip-api.com for public source IPs
+    geo: {
+      type:    geoSchema,
       default: null,
     },
   },

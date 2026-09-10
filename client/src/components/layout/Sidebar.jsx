@@ -14,20 +14,27 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import {
   ShieldCheck, LayoutDashboard, Skull, GitBranch,
   MessageSquare, FileText, Upload, Settings, LogOut,
-  Radio, Wifi, WifiOff,
+  Radio, Wifi, WifiOff, Crosshair, Target, ClipboardList, Activity, Zap,
 } from 'lucide-react';
 import { useAuth } from '@/context/AuthContext';
 import { useSocket } from '@/context/SocketContext';
 import { formatDistanceToNow } from 'date-fns';
 
-/* ── Nav link definition ────────────────────────────────────── */
+/* ── Nav link definitions ───────────────────────────────────── */
 const NAV_ITEMS = [
-  { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard'   },
-  { to: '/threats',    icon: Skull,           label: 'Threats'     },
-  { to: '/incidents',  icon: GitBranch,       label: 'Incidents'   },
-  { to: '/chat',       icon: MessageSquare,   label: 'AI Chat'     },
-  { to: '/reports',    icon: FileText,        label: 'Reports'     },
-  { to: '/import',     icon: Upload,          label: 'Log Import'  },
+  { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard'     },
+  { to: '/activity',   icon: Activity,        label: 'Host Activity' },
+  { to: '/threats',    icon: Skull,           label: 'Threats'       },
+  { to: '/incidents',  icon: GitBranch,       label: 'Incidents'     },
+  { to: '/defense',    icon: Zap,             label: 'Active Defense' },
+  { to: '/chat',       icon: MessageSquare,   label: 'AI Chat'       },
+  { to: '/reports',    icon: FileText,        label: 'Reports'       },
+  { to: '/import',     icon: Upload,          label: 'Log Import'    },
+];
+
+const INTEL_ITEMS = [
+  { to: '/hunt',       icon: Crosshair,       label: 'Threat Hunt' },
+  { to: '/mitre',      icon: Target,          label: 'MITRE Matrix' },
 ];
 
 export default function Sidebar() {
@@ -103,10 +110,31 @@ export default function Sidebar() {
             {label}
           </NavLink>
         ))}
+
+        <p className="section-heading px-2 mb-2 mt-4">Intelligence</p>
+        {INTEL_ITEMS.map(({ to, icon: Icon, label }) => (
+          <NavLink
+            key={to}
+            to={to}
+            className={({ isActive }) =>
+              `nav-item ${isActive ? 'active' : ''}`
+            }
+          >
+            <Icon className="w-4 h-4 shrink-0" />
+            {label}
+          </NavLink>
+        ))}
       </nav>
 
-      {/* ── Bottom: Settings + Logout ────────────────────────── */}
+      {/* ── Bottom: Audit + Settings + Logout ──────────────── */}
       <div className="px-3 py-4 border-t border-white/5 space-y-0.5">
+        <NavLink
+          to="/audit"
+          className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}
+        >
+          <ClipboardList className="w-4 h-4 shrink-0" />
+          Audit Log
+        </NavLink>
         <NavLink
           to="/settings"
           className={({ isActive }) => `nav-item ${isActive ? 'active' : ''}`}

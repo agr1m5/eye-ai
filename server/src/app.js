@@ -20,6 +20,9 @@ import reportRoutes from './routes/reportRoutes.js';
 import agentRoutes from './routes/agentRoutes.js';
 import tiRoutes from './routes/tiRoutes.js';
 import logImportRoutes from './routes/logImportRoutes.js';
+import auditRoutes from './routes/auditRoutes.js';
+import activityRoutes from './routes/activityRoutes.js';
+import defenseRoutes from './routes/defenseRoutes.js';
 
 const app = express();
 
@@ -61,6 +64,9 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/agent', agentRoutes);
 app.use('/api/ti', tiRoutes);
 app.use('/api/logs', logImportRoutes);
+app.use('/api/audit', auditRoutes);
+app.use('/api/activities', activityRoutes);
+app.use('/api/defense', defenseRoutes);
 
 // 404 Handler
 app.use((req, res) => {

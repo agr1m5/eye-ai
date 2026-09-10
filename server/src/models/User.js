@@ -62,6 +62,24 @@ const userSchema = new mongoose.Schema(
       default: null,
       trim:    true,
     },
+
+    // SOC configuration preferences — editable from the Settings page
+    preferences: {
+      // Rolling window (ms) within which findings cluster into an Incident
+      correlationWindowMs: {
+        type:    Number,
+        default: 15 * 60 * 1000,  // 15 minutes
+        min:     5  * 60 * 1000,  // 5 minutes minimum
+        max:     60 * 60 * 1000,  // 60 minutes maximum
+      },
+      // Minimum number of findings required to auto-open an Incident
+      minFindingsThreshold: {
+        type:    Number,
+        default: 2,
+        min:     2,
+        max:     10,
+      },
+    },
   },
   { timestamps: true }
 );
@@ -115,6 +133,7 @@ userSchema.methods.toSafeObject = function () {
     agentLabel:          this.agentLabel,
     agentTokenExpiresAt: this.agentTokenExpiresAt,
     agentPaired:         !!this.agentTokenHash || false,
+    preferences:         this.preferences,
     createdAt:           this.createdAt,
     updatedAt:           this.updatedAt,
   };

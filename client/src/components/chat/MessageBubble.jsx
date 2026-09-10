@@ -2,16 +2,36 @@
  * MessageBubble.jsx — Formatted chat message bubble supporting markdown and code snippets.
  */
 import { useState } from 'react';
-import { Bot, User, Copy, Check } from 'lucide-react';
+import { Bot, User, Copy, Check, Zap, ShieldCheck } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { defenseApi } from '@/services/api';
 
 export default function MessageBubble({ message }) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
+  const [executedActions, setExecutedActions] = useState({});
 
   const handleCopy = () => {
     navigator.clipboard.writeText(message.content);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
+  };
+
+  const handleExecuteContainment = async (actionType, target) => {
+    try {
+      const res = await defenseApi.contain({
+        actionType,
+        target,
+        reason: 'Autonomous AI Copilot Playbook Execution',
+        executedBy: 'autonomous_ai',
+      });
+      if (res.data?.status === 'success') {
+        toast.success(`⚡ Countermeasure Enforced: ${actionType} on ${target}`);
+        setExecutedActions((prev) => ({ ...prev, [target]: true }));
+      }
+    } catch (err) {
+      toast.error(`Containment failed: ${err.response?.data?.message || err.message}`);
+    }
   };
 
   // Simple clean markdown-like line renderer
@@ -23,6 +43,39 @@ export default function MessageBubble({ message }) {
     const elements = [];
 
     lines.forEach((line, idx) => {
+      // Interactive SOAR countermeasure card
+      const actionMatch = line.match(/\[ACTION:(block_ip|kill_process|isolate_host|quarantine_file):([^\]]+)\]/);
+      if (actionMatch) {
+        const [, actionType, target] = actionMatch;
+        const isExecuted = executedActions[target];
+        elements.push(
+          <div key={`action-${idx}`} className="my-2 p-3 rounded-lg bg-red-950/50 border border-red-800/80 flex items-center justify-between gap-3 shadow-lg">
+            <div className="flex items-center gap-2.5">
+              <div className="p-1 rounded bg-red-900/60 text-red-300">
+                <Zap className="w-4 h-4 text-red-400" />
+              </div>
+              <div>
+                <p className="text-xs font-semibold text-red-200 uppercase tracking-wide font-mono">
+                  Recommended Action: {actionType.replace('_', ' ')}
+                </p>
+                <p className="text-[11px] font-mono text-slate-300">Target: {target}</p>
+              </div>
+            </div>
+            <button
+              onClick={() => handleExecuteContainment(actionType, target)}
+              disabled={isExecuted}
+              className={`px-3 py-1.5 rounded text-xs font-mono font-medium transition-all ${
+                isExecuted
+                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-700 cursor-not-allowed'
+                  : 'bg-red-700 hover:bg-red-600 text-white shadow-md hover:shadow-red-900/50'
+              }`}
+            >
+              {isExecuted ? '✓ Enforced' : '⚡ Execute Containment'}
+            </button>
+          </div>
+        );
+        return;
+      }
       if (line.startsWith('```')) {
         if (inCodeBlock) {
           elements.push(

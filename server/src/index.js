@@ -13,6 +13,11 @@ async function startServer() {
   // Connect to MongoDB
   await connectDB();
 
+  // Background enrich any legacy threats lacking coordinates
+  import('./services/geoService.js').then(({ enrichExistingThreats }) => {
+    enrichExistingThreats().catch(() => {});
+  });
+
   // Create HTTP Server
   const server = http.createServer(app);
 

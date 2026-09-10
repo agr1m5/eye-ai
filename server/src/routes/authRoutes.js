@@ -14,6 +14,7 @@ import {
   login,
   logout,
   getMe,
+  updatePreferences,
   signupValidation,
   loginValidation,
 } from '../controllers/authController.js';
@@ -24,5 +25,6 @@ router.post('/signup', authLimiter, signupValidation, signup);
 router.post('/login',  authLimiter, loginValidation,  login);
 router.post('/logout',                                logout);
 router.get( '/me',     protect,                       getMe);
+router.patch('/preferences', protect,                 updatePreferences);
 
 export default router;

@@ -12,6 +12,7 @@
 import { body, validationResult } from 'express-validator';
 import User      from '../models/User.js';
 import { signToken } from '../utils/jwt.js';
+import { createAuditEntry } from '../services/auditService.js';
 
 /* ── Shared validation helper ────────────────────────────────── */
 function handleValidationErrors(req, res) {
@@ -135,4 +136,62 @@ export async function getMe(req, res) {
     status: 'success',
     user:   req.user.toSafeObject(),
   });
+}
+
+/* ── PATCH /api/auth/preferences ────────────────────────────── */
+export async function updatePreferences(req, res, next) {
+  try {
+    const { correlationWindowMs, minFindingsThreshold } = req.body;
+
+    const update = {};
+
+    if (correlationWindowMs !== undefined) {
+      const val = parseInt(correlationWindowMs, 10);
+      if (isNaN(val) || val < 5 * 60 * 1000 || val > 60 * 60 * 1000) {
+        return res.status(400).json({
+          status:  'error',
+          message: 'correlationWindowMs must be between 300000 (5 min) and 3600000 (60 min).',
+        });
+      }
+      update['preferences.correlationWindowMs'] = val;
+    }
+
+    if (minFindingsThreshold !== undefined) {
+      const val = parseInt(minFindingsThreshold, 10);
+      if (isNaN(val) || val < 2 || val > 10) {
+        return res.status(400).json({
+          status:  'error',
+          message: 'minFindingsThreshold must be between 2 and 10.',
+        });
+      }
+      update['preferences.minFindingsThreshold'] = val;
+    }
+
+    if (Object.keys(update).length === 0) {
+      return res.status(400).json({ status: 'error', message: 'No valid preferences provided.' });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user._id,
+      { $set: update },
+      { new: true, runValidators: true }
+    );
+
+    createAuditEntry({
+      userId:     req.user._id,
+      action:     'settings.updated',
+      targetType: 'User',
+      targetId:   req.user._id,
+      metadata:   update,
+      ip:         req.ip,
+    });
+
+    return res.status(200).json({
+      status:  'success',
+      message: 'Preferences updated.',
+      user:    user.toSafeObject(),
+    });
+  } catch (err) {
+    next(err);
+  }
 }

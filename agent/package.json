@@ -1,0 +1,15 @@
+{
+  "name": "rakshak-agent",
+  "version": "1.0.0",
+  "description": "Rakshak Live local agent — collects and locally detects threats from system logs, processes, and network connections on this Mac",
+  "main": "src/index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "license": "ISC",
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "socket.io-client": "^4.8.1"
+  }
+}

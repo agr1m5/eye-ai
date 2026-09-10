@@ -37,4 +37,6 @@ export const config = {
   openaiModel: process.env.OPENAI_MODEL || 'gpt-4o',
   virusTotalApiKey: process.env.VIRUSTOTAL_API_KEY || '',
   clientOrigin: process.env.CLIENT_ORIGIN || 'http://localhost:5173',
+  slackWebhookUrl: process.env.SLACK_WEBHOOK_URL || '',
+  alertWebhookUrl: process.env.ALERT_WEBHOOK_URL || '',
 };

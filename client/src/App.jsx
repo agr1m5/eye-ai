@@ -15,6 +15,8 @@
  *   /dashboard    → DashboardPage     (protected)
  *   /threats      → ThreatsPage       (protected)
  *   /incidents    → IncidentsPage     (protected)
+ *   /hunt         → HuntPage          (protected)
+ *   /mitre        → MitreMatrixPage   (protected)
  *   /chat         → ChatPage          (protected)
  *   /reports      → ReportsPage       (protected)
  *   /import       → LogImportPage     (protected)
@@ -33,10 +35,17 @@ import SignupPage    from '@/pages/SignupPage';
 import DashboardPage from '@/pages/DashboardPage';
 import ThreatsPage   from '@/pages/ThreatsPage';
 import IncidentsPage from '@/pages/IncidentsPage';
+import HuntPage      from '@/pages/HuntPage';
+import MitreMatrixPage from '@/pages/MitreMatrixPage';
 import ChatPage      from '@/pages/ChatPage';
 import ReportsPage   from '@/pages/ReportsPage';
 import LogImportPage from '@/pages/LogImportPage';
 import SettingsPage  from '@/pages/SettingsPage';
+import AuditPage     from '@/pages/AuditPage';
+import ActivityPage  from '@/pages/ActivityPage';
+import DefensePage   from '@/pages/DefensePage';
+import GlobalAlertListener from '@/components/common/GlobalAlertListener';
+import ErrorBoundary from '@/components/common/ErrorBoundary';
 
 /* ── ProtectedRoute ─────────────────────────────────────────
    Redirects to /login if the user is not authenticated.
@@ -88,11 +97,20 @@ function AppRoutes() {
         <Route path="/dashboard" element={
           <ProtectedRoute><DashboardPage /></ProtectedRoute>
         } />
+        <Route path="/activity" element={
+          <ProtectedRoute><ActivityPage /></ProtectedRoute>
+        } />
         <Route path="/threats" element={
           <ProtectedRoute><ThreatsPage /></ProtectedRoute>
         } />
         <Route path="/incidents" element={
           <ProtectedRoute><IncidentsPage /></ProtectedRoute>
+        } />
+        <Route path="/hunt" element={
+          <ProtectedRoute><HuntPage /></ProtectedRoute>
+        } />
+        <Route path="/mitre" element={
+          <ProtectedRoute><MitreMatrixPage /></ProtectedRoute>
         } />
         <Route path="/chat" element={
           <ProtectedRoute><ChatPage /></ProtectedRoute>
@@ -105,6 +123,9 @@ function AppRoutes() {
         } />
         <Route path="/settings" element={
           <ProtectedRoute><SettingsPage /></ProtectedRoute>
+        } />
+        <Route path="/audit" element={
+          <ProtectedRoute><AuditPage /></ProtectedRoute>
         } />
 
         {/* Catch-all */}
@@ -125,7 +146,10 @@ export default function App() {
           across route changes without re-connecting.
         */}
         <SocketProvider>
-          <AppRoutes />
+          <GlobalAlertListener />
+          <ErrorBoundary>
+            <AppRoutes />
+          </ErrorBoundary>
 
           {/* Global toast notification container */}
           <Toaster

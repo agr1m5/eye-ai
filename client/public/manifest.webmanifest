@@ -1,0 +1,19 @@
+{
+  "name": "Rakshak 2.0 Security Operations Center",
+  "short_name": "Rakshak SOC",
+  "description": "Real-time AI-augmented endpoint threat detection & telemetry operations center",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#050b14",
+  "theme_color": "#050b14",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

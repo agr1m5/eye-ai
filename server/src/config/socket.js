@@ -10,8 +10,14 @@ import { config } from './env.js';
 import { verifyToken } from '../utils/jwt.js';
 import User from '../models/User.js';
 import Threat from '../models/Threat.js';
+import HostActivity from '../models/HostActivity.js';
+import DefenseAction from '../models/DefenseAction.js';
+import { correlateFinding, handleAgentIncident } from '../services/correlationService.js';
+import { dispatchCriticalAlert } from '../services/alertService.js';
+import { enrichThreat } from '../services/geoService.js';
 
 let io = null;
+const activeAgents = new Map(); // userId -> { socketId, label, lastSeen, metrics }
 
 export function initSocketServer(httpServer) {
   io = new Server(httpServer, {
@@ -52,6 +58,17 @@ export function initSocketServer(httpServer) {
     socket.join(userRoom);
     console.log(`[Socket.IO:Client] User connected: ${socket.userId} (socket ${socket.id}) joined room ${userRoom}`);
 
+    // If an agent is already active for this user, inform client immediately
+    const active = activeAgents.get(socket.userId);
+    if (active) {
+      socket.emit('agent:status', {
+        connected: true,
+        label: active.label,
+        lastSeen: active.lastSeen,
+        metrics: active.metrics || null,
+      });
+    }
+
     socket.on('disconnect', (reason) => {
       console.log(`[Socket.IO:Client] User disconnected: ${socket.userId} (${reason})`);
     });
@@ -64,14 +81,30 @@ export function initSocketServer(httpServer) {
 
   agentNamespace.use(async (socket, next) => {
     try {
-      const { agentToken, userId } = socket.handshake.auth || {};
-      if (!agentToken || !userId) {
-        return next(new Error('Agent pairing token and userId required in auth'));
+      const auth = socket.handshake.auth || {};
+      const agentToken = auth.agentToken || auth.token;
+      let userId = auth.userId;
+
+      if (!agentToken) {
+        return next(new Error('Agent pairing token required in auth'));
       }
 
-      const user = await User.findById(userId).select('+agentTokenHash');
+      let user = null;
+      if (userId) {
+        user = await User.findById(userId).select('+agentTokenHash');
+      } else {
+        // Fallback: match against all users with an active pairing token
+        const users = await User.find({ agentTokenHash: { $ne: null } }).select('+agentTokenHash');
+        for (const u of users) {
+          if (await u.compareAgentToken(agentToken)) {
+            user = u;
+            break;
+          }
+        }
+      }
+
       if (!user) {
-        return next(new Error('User account not found'));
+        return next(new Error('User account not found or invalid pairing token'));
       }
 
       const isValid = await user.compareAgentToken(agentToken);
@@ -92,14 +125,22 @@ export function initSocketServer(httpServer) {
     const clientRoom = `user:${userId}`;
     console.log(`[Socket.IO:Agent] Agent connected for user ${userId} (socket ${socket.id})`);
 
-    // Notify user's dashboard that agent is online
-    clientNamespace.to(clientRoom).emit('agent:status', {
+    const agentInfo = {
       connected: true,
       label: socket.agentLabel,
       lastSeen: new Date(),
+    };
+
+    activeAgents.set(userId, {
+      socketId: socket.id,
+      label: socket.agentLabel,
+      lastSeen: agentInfo.lastSeen,
     });
 
-    // Ingest finding from agent
+    // Notify user's dashboard that agent is online
+    clientNamespace.to(clientRoom).emit('agent:status', agentInfo);
+
+    // Ingest single finding from agent
     socket.on('finding:submit', async (findingData, ack) => {
       try {
         if (!findingData || !findingData.severity || !findingData.type) {
@@ -121,8 +162,19 @@ export function initSocketServer(httpServer) {
 
         await threat.save();
 
+        // Enrich with GeoIP data (non-blocking, silent on RFC-1918 / error)
+        await enrichThreat(threat);
+
         // Broadcast to user dashboard
         clientNamespace.to(clientRoom).emit('finding:new', threat.toObject());
+
+        // Real-time correlation into an Incident
+        await correlateFinding(threat, socket.userId, clientNamespace, clientRoom);
+
+        // Fire webhook alert for critical / high findings
+        if (threat.severity === 'critical' || threat.severity === 'high') {
+          dispatchCriticalAlert(threat.toObject()).catch(() => {});
+        }
 
         if (typeof ack === 'function') {
           ack({ status: 'success', threatId: threat._id });
@@ -135,18 +187,141 @@ export function initSocketServer(httpServer) {
       }
     });
 
-    // Heartbeat from agent
-    socket.on('agent:heartbeat', (data) => {
+    // Ingest batch findings from agent
+    socket.on('findings:batch', async (data, ack) => {
+      try {
+        const findings = data?.findings || [];
+        let count = 0;
+        for (const f of findings) {
+          if (!f) continue;
+
+          // If agent emitted an already correlated incident cluster
+          if (f.kind === 'incident') {
+            await handleAgentIncident(f, socket.userId, clientNamespace, clientRoom);
+            count++;
+            continue;
+          }
+
+          if (!f.severity || !f.type) continue;
+          const threat = new Threat({
+            userId: socket.userId,
+            severity: f.severity,
+            type: f.type,
+            source: f.source || {
+              ip: f.sourceIp || null,
+              processName: f.processName || null,
+              pid: f.pid || null,
+              port: f.port || null,
+            },
+            description: f.description || '',
+            rawData: f.raw || f.rawData || null,
+            agentSessionId: f.agentSessionId || socket.id,
+            status: 'new',
+            fromImport: false,
+          });
+          await threat.save();
+          await enrichThreat(threat);
+          count++;
+          clientNamespace.to(clientRoom).emit('finding:new', threat.toObject());
+
+          // Real-time entity & MITRE correlation
+          await correlateFinding(threat, socket.userId, clientNamespace, clientRoom);
+
+          // Fire webhook alert for critical / high findings
+          if (threat.severity === 'critical' || threat.severity === 'high') {
+            dispatchCriticalAlert(threat.toObject()).catch(() => {});
+          }
+        }
+        if (typeof ack === 'function') {
+          ack({ success: true, count });
+        }
+      } catch (err) {
+        console.error('[Socket.IO:Agent] Batch save error:', err.message);
+        if (typeof ack === 'function') ack({ success: false, error: err.message });
+      }
+    });
+
+    // Ingest batch host & user activities from agent
+    socket.on('activities:batch', async (data, ack) => {
+      try {
+        const rawActivities = data?.activities || [];
+        if (!Array.isArray(rawActivities) || rawActivities.length === 0) {
+          if (typeof ack === 'function') ack({ success: true, count: 0 });
+          return;
+        }
+
+        const docs = rawActivities.map((act) => ({
+          userId: socket.userId,
+          source: act.source || 'process',
+          action: act.action || `${act.source || 'process'}.event`,
+          description: act.description || act.message || 'Host activity recorded',
+          actor: act.actor || act.user || 'system',
+          entity: act.entity || act.command || act.remoteIp || '',
+          ip: act.ip || act.remoteIp || null,
+          isThreat: Boolean(act.isThreat),
+          severity: act.severity || 'none',
+          threatType: act.threatType || null,
+          metadata: act.metadata || act.raw ? { raw: act.raw, ...act } : act,
+          timestamp: act.timestamp ? new Date(act.timestamp) : new Date(),
+        }));
+
+        const inserted = await HostActivity.insertMany(docs, { ordered: false });
+
+        // Real-time broadcast to user's dashboard
+        clientNamespace.to(clientRoom).emit('activity:batch', inserted);
+
+        if (typeof ack === 'function') {
+          ack({ success: true, count: inserted.length });
+        }
+      } catch (err) {
+        console.error('[Socket.IO:Agent] Error saving activity batch:', err.message);
+        if (typeof ack === 'function') {
+          ack({ success: false, error: err.message });
+        }
+      }
+    });
+
+    // Heartbeat from agent (handles both 'agent:heartbeat' and 'heartbeat')
+    const handleHeartbeat = (data) => {
+      const lastSeen = new Date();
+      const metrics = data?.metrics || null;
+      activeAgents.set(userId, {
+        socketId: socket.id,
+        label: socket.agentLabel,
+        lastSeen,
+        metrics,
+      });
+
       clientNamespace.to(clientRoom).emit('agent:status', {
         connected: true,
         label: socket.agentLabel,
-        lastSeen: new Date(),
-        metrics: data?.metrics || null,
+        lastSeen,
+        metrics,
       });
+    };
+
+    socket.on('agent:heartbeat', handleHeartbeat);
+    socket.on('heartbeat', handleHeartbeat);
+
+    // Containment command receipt from agent
+    socket.on('agent:contain:receipt', async (receipt) => {
+      try {
+        if (receipt?.actionId) {
+          await DefenseAction.findByIdAndUpdate(receipt.actionId, {
+            status: receipt.success ? 'active' : 'failed',
+            $set: { 'receipt.agentExecution': receipt },
+          });
+        }
+        clientNamespace.to(clientRoom).emit('defense:action:confirmed', receipt);
+        io.of('/').to(clientRoom).emit('defense:action:confirmed', receipt);
+      } catch (err) {
+        console.error('[Socket.IO:Agent] Error updating defense action receipt:', err.message);
+      }
     });
 
     socket.on('disconnect', (reason) => {
       console.log(`[Socket.IO:Agent] Agent disconnected for user ${userId}: ${reason}`);
+      activeAgents.delete(userId);
       const lastSeen = new Date();
       clientNamespace.to(clientRoom).emit('agent:status', {
         connected: false,

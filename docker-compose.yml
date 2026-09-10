@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # MongoDB Database
+  mongo:
+    image: mongo:7
+    container_name: rakshak-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - rakshak-net
+
+  # Rakshak SOC Backend Server
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: rakshak-server
+    restart: unless-stopped
+    environment:
+      - PORT=5000
+      - MONGODB_URI=mongodb://mongo:27017/rakshak
+      - JWT_SECRET=rakshak_super_secret_jwt_key_prod_linux_2026
+      - AGENT_TOKEN_SECRET=rakshak_agent_token_secret_linux_prod_2026
+      - CLIENT_ORIGIN=http://localhost:5180
+      - NODE_ENV=production
+    ports:
+      - "5000:5000"
+    depends_on:
+      - mongo
+    networks:
+      - rakshak-net
+
+  # Rakshak SOC Frontend Web Client
+  client:
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    container_name: rakshak-client
+    restart: unless-stopped
+    ports:
+      - "5180:80"
+    depends_on:
+      - server
+    networks:
+      - rakshak-net
+
+networks:
+  rakshak-net:
+    driver: bridge
+
+volumes:
+  mongo_data:
+    driver: local
