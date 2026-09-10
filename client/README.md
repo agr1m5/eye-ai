@@ -10,8 +10,8 @@ The frontend interface for the Rakshak 2.0 Security Operations Center platform. 
   - Live metric KPI counters (Active Incidents, Critical Threats, Agents Online, Events/min).
   - Dynamic severity distribution doughnut charts and event velocity line graphs.
   - Interactive live event ticker with auto-scroll and severity-based color coding.
-- 🗺️ **Interactive Threat Map**:
-  - Visualizes geolocation origin of suspicious IPs using Three.js / Leaflet mapping.
+- ⚡ **Interactive Kill-Chain Attack Graph**:
+  - Real-time 6-stage MITRE ATT&CK progression tracking with one-click SOAR countermeasures.
 - 🚨 **Incident Investigation Room**:
   - View correlated attack chains, affected assets, and timeline of events.
   - Interactive status controls (`Open`, `Investigating`, `Contained`, `Resolved`) with audit log persistence.

@@ -1,4 +1,5 @@
 import { config, assertConfigured } from "./config.js";
+import { ensureDevicePermissionGranted } from "./consent.js";
 import { startSystemLogCollector } from "./collectors/systemLogCollector.js";
 import { startProcessCollector } from "./collectors/processCollector.js";
 import { startNetworkCollector } from "./collectors/networkCollector.js";
@@ -11,8 +12,11 @@ function log(message) {
   console.log(`[${new Date().toISOString()}] ${message}`);
 }
 
-function main() {
+async function main() {
   assertConfigured();
+
+  // Ask / verify device monitoring permission before accessing any host resources
+  await ensureDevicePermissionGranted();
 
   const classifier = new ThreatClassifier();
   const correlator = new CorrelationEngine();

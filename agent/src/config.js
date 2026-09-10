@@ -10,6 +10,7 @@ export const config = {
   backendUrl: process.env.BACKEND_URL || "http://localhost:5050",
   agentToken: process.env.AGENT_TOKEN || "",
   userId: process.env.USER_ID || "",
+  deviceAccessGranted: process.env.DEVICE_ACCESS_GRANTED === "true",
 
   // Collector poll intervals (ms)
   processPollIntervalMs: Number(process.env.PROCESS_POLL_INTERVAL_MS) || 5_000,

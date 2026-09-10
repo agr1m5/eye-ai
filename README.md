@@ -35,7 +35,7 @@ Whether monitoring a standalone workstation or a fleet of Linux/macOS servers, R
 | ⚡ **Live Telemetry Gateway** | Bi-directional WebSocket pipeline streaming events, process diffs, network connections, and system auth logs in real time. |
 | 🧠 **AI SOC Analyst Copilot** | Multi-turn conversational AI (powered by **Ollama / Llama 3.2** locally or OpenAI) that explains complex threats, suggests remediation, and analyzes logs. |
 | 🎯 **Automated MITRE ATT&CK Mapping** | Automatically tags detected threats with standard MITRE tactics, techniques, and severity scoring (Critical, High, Medium, Low). |
-| 🗺️ **Interactive Global Threat Map** | Real-time geospatial mapping visualizing external attack IP locations, coordinates, and origin countries. |
+| ⚡ **Live Kill-Chain Attack Graph** | 6-stage Lockheed Martin & MITRE ATT&CK progression visualizer with one-click active SOAR countermeasures. |
 | 🚨 **Incident Correlation & Timeline** | Automatically correlates related security events sharing an entity or IP into unified incident cases with full audit notes. |
 | 📁 **Forensic Log Importer** | Ingests and extracts indicators of compromise (IoCs) from raw uploads (`auth.log`, `access.log`, `syslog`, JSON). |
 | 📄 **Executive PDF Reporting** | Generates professional, printable compliance and incident summary reports on demand. |

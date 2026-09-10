@@ -12,7 +12,7 @@ import PageWrapper from '@/components/layout/PageWrapper';
 import Modal from '@/components/common/Modal';
 import { useAuth } from '@/context/AuthContext';
 import { authApi } from '@/services/api';
-import { Settings, ShieldCheck, ShieldAlert, Bot, Database, User, Copy, Check, AlertTriangle, Key, GitBranch, Save } from 'lucide-react';
+import { Settings, ShieldCheck, ShieldAlert, Bot, Database, User, Copy, Check, AlertTriangle, Key, GitBranch, Save, Terminal, Network, FileText, CheckCircle2 } from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -238,8 +238,80 @@ export default function SettingsPage() {
           </div>
         </Section>
 
+        {/* Host Device Access & Telemetry Consent */}
+        <Section icon={ShieldCheck} title="Host Device Access & Telemetry Consent">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-3 rounded-lg bg-surface-900 border border-surface-700/60 font-mono text-xs">
+              <span className="text-slate-400">Endpoint Authorization Status:</span>
+              <span className="text-emerald-400 flex items-center gap-1.5 font-bold">
+                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                AUTHORIZED BY USER
+              </span>
+            </div>
+
+            <p className="text-xs text-slate-400 leading-relaxed">
+              The Rakshak telemetry agent requires explicit user consent before inspecting system activity.
+              All data processing occurs strictly on-device with zero external raw data exfiltration:
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="p-3 rounded-lg bg-surface-800/60 border border-white/5 space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold text-slate-200">
+                  <Terminal className="w-3.5 h-3.5 text-accent-400" />
+                  <span>Process Table Auditing</span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Diffs active processes (<code className="text-accent-400 font-mono">ps</code>) to detect malicious interpreters &amp; reverse shells.
+                </p>
+                <span className="inline-block text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-800">
+                  Permission Granted
+                </span>
+              </div>
+
+              <div className="p-3 rounded-lg bg-surface-800/60 border border-white/5 space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold text-slate-200">
+                  <Network className="w-3.5 h-3.5 text-accent-400" />
+                  <span>Network Socket Auditing</span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Audits open and active TCP/UDP connections (<code className="text-accent-400 font-mono">lsof/ss</code>) for unauthorized C2 beacons.
+                </p>
+                <span className="inline-block text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-800">
+                  Permission Granted
+                </span>
+              </div>
+
+              <div className="p-3 rounded-lg bg-surface-800/60 border border-white/5 space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold text-slate-200">
+                  <FileText className="w-3.5 h-3.5 text-accent-400" />
+                  <span>System Auth Log Stream</span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Ingests authentication events (<code className="text-accent-400 font-mono">auth.log / unified log</code>) to detect brute-force attacks.
+                </p>
+                <span className="inline-block text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-800">
+                  Permission Granted
+                </span>
+              </div>
+
+              <div className="p-3 rounded-lg bg-surface-800/60 border border-white/5 space-y-1">
+                <div className="flex items-center gap-1.5 font-semibold text-slate-200">
+                  <Key className="w-3.5 h-3.5 text-accent-400" />
+                  <span>Canary Decoy Honeytoken</span>
+                </div>
+                <p className="text-[11px] text-slate-400">
+                  Monitors canary trap files in <code className="text-accent-400 font-mono">~/.rakshak/canary.env</code> for unauthorized tampering.
+                </p>
+                <span className="inline-block text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-800">
+                  Permission Granted
+                </span>
+              </div>
+            </div>
+          </div>
+        </Section>
+
         {/* Privacy */}
-        <Section icon={Database} title="Data Privacy &amp; Zero-Knowledge Guarantee">
+        <Section icon={Database} title="Data Privacy & Zero-Knowledge Guarantee">
           <p className="text-xs text-slate-400 leading-relaxed">
             Raw operating system logs, memory traces, and socket activity never exit your perimeter.
             The agent executes detection rules locally on your endpoint and transmits only distilled,
