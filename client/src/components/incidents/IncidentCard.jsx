@@ -8,7 +8,7 @@
  */
 import { useState } from 'react';
 import { formatDistanceToNow, format } from 'date-fns';
-import { GitBranch, Shield, ChevronDown, ChevronUp, AlertCircle, Clock, CheckCircle } from 'lucide-react';
+import { GitBranch, Shield, ChevronDown, ChevronUp, AlertCircle, Clock, CheckCircle, Trash2 } from 'lucide-react';
 import SeverityBadge from '@/components/common/SeverityBadge';
 import { formatTechnique } from '@/utils/threatFormatter';
 
@@ -19,7 +19,7 @@ const STATUS_OPTIONS = [
   { value: 'closed', label: 'Closed', color: 'text-slate-500 bg-slate-500/10 border-slate-500/20' },
 ];
 
-export default function IncidentCard({ incident, onSelect, onStatusChange }) {
+export default function IncidentCard({ incident, onSelect, onStatusChange, onDelete }) {
   const [isUpdating, setIsUpdating] = useState(false);
 
   const handleStatusSelect = async (e) => {
@@ -64,23 +64,35 @@ export default function IncidentCard({ incident, onSelect, onStatusChange }) {
           </div>
         </div>
 
-        {/* Status Dropdown */}
-        <div onClick={(e) => e.stopPropagation()} className="relative">
-          <select
-            value={incident.status}
-            onChange={handleStatusSelect}
-            disabled={isUpdating}
-            className={`text-xs px-2.5 py-1 rounded-full font-medium border appearance-none pr-7 cursor-pointer
-                        bg-surface-900 focus:outline-none focus:ring-1 focus:ring-accent-400 transition-colors
-                        ${currentStatusObj.color} ${isUpdating ? 'opacity-50 cursor-wait' : ''}`}
-          >
-            {STATUS_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value} className="bg-surface-900 text-slate-200">
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <ChevronDown className="w-3.5 h-3.5 absolute right-2 top-2 pointer-events-none text-slate-400" />
+        {/* Status Dropdown & Delete Button */}
+        <div onClick={(e) => e.stopPropagation()} className="flex items-center gap-1.5">
+          <div className="relative" title="Status changes automatically sync to all correlated threats">
+            <select
+              value={incident.status}
+              onChange={handleStatusSelect}
+              disabled={isUpdating}
+              className={`text-xs px-2.5 py-1 rounded-full font-medium border appearance-none pr-7 cursor-pointer
+                          bg-surface-900 focus:outline-none focus:ring-1 focus:ring-accent-400 transition-colors
+                          ${currentStatusObj.color} ${isUpdating ? 'opacity-50 cursor-wait' : ''}`}
+            >
+              {STATUS_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value} className="bg-surface-900 text-slate-200">
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="w-3.5 h-3.5 absolute right-2 top-2 pointer-events-none text-slate-400" />
+          </div>
+
+          {onDelete && (
+            <button
+              onClick={() => onDelete(incident)}
+              title="Delete incident and remove correlated threats"
+              className="p-1.5 rounded-lg text-slate-500 hover:text-red-400 hover:bg-red-400/10 transition-colors opacity-0 group-hover:opacity-100"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
         </div>
       </div>
 
@@ -107,9 +119,12 @@ export default function IncidentCard({ incident, onSelect, onStatusChange }) {
 
       {/* Footer Info */}
       <div className="flex items-center justify-between pt-3 border-t border-white/5 text-xs text-slate-500">
-        <div className="flex items-center gap-1.5">
-          <Shield className="w-3.5 h-3.5 text-slate-600" />
-          <span>{incident.threatIds?.length || 0} correlated threats</span>
+        <div className="flex items-center gap-1.5" title="All correlated threats are automatically synchronized with this incident">
+          <Shield className="w-3.5 h-3.5 text-accent-400" />
+          <span className="text-slate-300 font-medium">{incident.threatIds?.length || 0} correlated threats</span>
+          <span className="text-[10px] text-brand-400/90 bg-brand-400/10 border border-brand-400/20 px-1.5 py-0.2 rounded">
+            Auto-Synced
+          </span>
         </div>
         <div className="flex items-center gap-1.5">
           <Clock className="w-3.5 h-3.5 text-slate-600" />

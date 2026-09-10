@@ -4,7 +4,7 @@
  * Real-time SOC dashboard: stat cards, live event feed, severity distribution,
  * 30-minute event-rate sparkline, and live agent telemetry sentinel panels.
  */
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import PageWrapper from '@/components/layout/PageWrapper';
@@ -23,13 +23,17 @@ import {
   GitBranch,
   ShieldCheck,
   ShieldAlert,
+  ShieldX,
   Cpu,
   Network,
   Radio,
   ExternalLink,
   Zap,
+  Flame,
+  RotateCcw,
   Volume2,
   VolumeX,
+  AlertTriangle,
 } from 'lucide-react';
 
 function StatCard({ icon: Icon, label, value, color = 'text-accent-400', subtext, onClick }) {
@@ -77,6 +81,29 @@ export default function DashboardPage() {
   const [drillModalOpen, setDrillModalOpen] = useState(false);
   const [autopilot, setAutopilot] = useState(() => localStorage.getItem('rakshak_autopilot') === 'true');
   const [isMuted, setIsMuted] = useState(() => (tacticalAudio ? tacticalAudio.isMuted() : false));
+
+  // Shared attack state lifted from AttackChainGraph — drives header sync
+  // 'idle' | 'attack' | 'mitigating' | 'safe' | 'unsafe'
+  const [attackState, setAttackState] = useState('idle');
+  // Increment to signal graph to fully reset its internal containment state
+  const [resetCounter, setResetCounter] = useState(0);
+
+  // Stable callback so AttackChainGraph doesn't re-render in loops
+  const handleAttackStateChange = useCallback((newState) => {
+    setAttackState(newState);
+  }, []);
+
+  // Called when user clicks the header button to exit safe/unsafe state
+  const handleResetAttackState = useCallback(() => {
+    setAttackState('idle');
+    setResetCounter((c) => c + 1); // triggers graph reset via prop
+  }, []);
+
+  // Derived booleans for header styling
+  const isUnderAttack  = attackState === 'attack';
+  const isMitigating   = attackState === 'mitigating';
+  const isSafeState    = attackState === 'safe';
+  const isUnsafeState  = attackState === 'unsafe';
   const { subscribe } = useSocket();
 
   const {
@@ -172,27 +199,92 @@ export default function DashboardPage() {
         {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
       </button>
 
-      {/* Autopilot Switch */}
+      {/* ── THREAT LEVEL STATUS PILL — syncs with Kill-Chain state ── */}
+      {(isUnderAttack || isMitigating || isUnsafeState) && (
+        <span
+          className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono font-bold uppercase tracking-widest transition-all ${
+            isUnderAttack || isUnsafeState
+              ? 'bg-red-950/90 border-red-700/80 text-red-300 shadow-[0_0_14px_rgba(239,68,68,0.35)] animate-pulse'
+              : 'bg-amber-950/80 border-amber-600/60 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.25)] animate-pulse'
+          }`}
+        >
+          {isUnderAttack || isUnsafeState ? (
+            <><AlertTriangle className="w-3 h-3 shrink-0" /> THREAT ACTIVE · UNSAFE</>
+          ) : (
+            <><RotateCcw className="w-3 h-3 shrink-0 animate-spin" /> AUTOMATION MITIGATING</>
+          )}
+        </span>
+      )}
+      {isSafeState && (
+        <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-emerald-950/80 border-emerald-500/60 text-emerald-300 text-[10px] font-mono font-bold uppercase tracking-widest shadow-[0_0_10px_rgba(16,185,129,0.25)] transition-all">
+          <ShieldCheck className="w-3 h-3 shrink-0" /> CONTAINED · SAFE
+        </span>
+      )}
+
+      {/* ── AUTOPILOT SWITCH — reacts to attack state ── */}
       <button
         onClick={handleToggleAutopilot}
-        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono font-semibold transition-all ${
-          autopilot
-            ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)] animate-pulse'
-            : 'bg-surface-800 border-surface-700 text-slate-400 hover:text-slate-300'
-        }`}
         title="Autonomous Cyber Defense Grid Autopilot (Auto-neutralize critical threats)"
+        className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-mono font-semibold transition-all ${
+          // Under attack + autopilot armed → vivid red (killing it)
+          autopilot && (isUnderAttack || isUnsafeState)
+            ? 'bg-red-950/90 border-red-600/80 text-red-200 shadow-[0_0_16px_rgba(239,68,68,0.5)] animate-pulse'
+          // Mitigating → amber spin
+          : autopilot && isMitigating
+            ? 'bg-amber-950/80 border-amber-600/60 text-amber-200 shadow-[0_0_12px_rgba(245,158,11,0.35)] animate-pulse'
+          // Safe → bright green
+          : autopilot && isSafeState
+            ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-[0_0_14px_rgba(16,185,129,0.4)]'
+          // Armed idle
+          : autopilot
+            ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300 shadow-[0_0_12px_rgba(16,185,129,0.3)] animate-pulse'
+          // Disarmed manual
+          : 'bg-surface-800 border-surface-700 text-slate-400 hover:text-slate-300'
+        }`}
       >
-        <Zap className={`w-3.5 h-3.5 ${autopilot ? 'text-emerald-400 fill-emerald-400' : 'text-slate-500'}`} />
-        <span>AUTOPILOT: {autopilot ? 'ARMED' : 'MANUAL'}</span>
+        {autopilot && (isUnderAttack || isUnsafeState) ? (
+          <><ShieldX className="w-3.5 h-3.5 text-red-400" /><span>AUTOPILOT: UNSAFE</span></>
+        ) : autopilot && isMitigating ? (
+          <><RotateCcw className="w-3.5 h-3.5 text-amber-400 animate-spin" /><span>AUTOPILOT: KILLING...</span></>
+        ) : autopilot && isSafeState ? (
+          <><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /><span>AUTOPILOT: SAFE</span></>
+        ) : autopilot ? (
+          <><Zap className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400" /><span>AUTOPILOT: ARMED</span></>
+        ) : (
+          <><Zap className="w-3.5 h-3.5 text-slate-500" /><span>AUTOPILOT: MANUAL</span></>
+        )}
       </button>
 
-      {/* Red Team Attack Drill Simulator */}
+      {/* ── SIMULATE ATTACK BUTTON — syncs color with kill-chain state ── */}
       <button
-        onClick={() => setDrillModalOpen(true)}
-        className="flex items-center gap-1.5 px-3 py-1 rounded-lg border border-red-800/70 bg-red-950/60 hover:bg-red-900/80 text-red-300 text-xs font-mono font-semibold shadow-md shadow-red-950/40 transition-all"
+        onClick={() => {
+          // In safe state: clicking resets to idle, not open modal
+          if (isSafeState) {
+            handleResetAttackState();
+          } else {
+            setDrillModalOpen(true);
+          }
+        }}
+        title={isSafeState ? 'Click to exit safe state and reset to idle' : 'Launch attack simulation'}
+        className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-mono font-semibold shadow-md transition-all ${
+          isUnderAttack || isUnsafeState
+            ? 'border-red-600/90 bg-red-700/80 hover:bg-red-600 text-white shadow-red-950/60 animate-pulse'
+            : isMitigating
+            ? 'border-amber-600/70 bg-amber-900/70 hover:bg-amber-800 text-amber-200 shadow-amber-950/40 animate-pulse'
+            : isSafeState
+            ? 'border-emerald-600/70 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 shadow-emerald-950/40'
+            : 'border-red-800/70 bg-red-950/60 hover:bg-red-900/80 text-red-300 shadow-red-950/40'
+        }`}
       >
-        <Skull className="w-3.5 h-3.5 text-red-400" />
-        <span>Simulate Attack</span>
+        {isUnderAttack || isUnsafeState ? (
+          <><Flame className="w-3.5 h-3.5 text-red-200 animate-bounce" /><span>Attack Live!</span></>
+        ) : isMitigating ? (
+          <><RotateCcw className="w-3.5 h-3.5 text-amber-300 animate-spin" /><span>Mitigating...</span></>
+        ) : isSafeState ? (
+          <><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /><span>Safe — Reset</span></>
+        ) : (
+          <><Skull className="w-3.5 h-3.5 text-red-400" /><span>Simulate Attack</span></>
+        )}
       </button>
     </div>
   );
@@ -246,7 +338,10 @@ export default function DashboardPage() {
 
       {/* ── Interactive Kill-Chain Attack Graph & SOAR Panel ─────── */}
       <div className="mb-4">
-        <AttackChainGraph />
+        <AttackChainGraph
+          onAttackStateChange={handleAttackStateChange}
+          resetSignal={resetCounter}
+        />
       </div>
 
       {/* ── Main Panels ────────────────────────────────────────── */}

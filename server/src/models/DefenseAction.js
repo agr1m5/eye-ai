@@ -55,7 +55,7 @@ const defenseActionSchema = new mongoose.Schema(
 
     executedBy: {
       type:    String,
-      enum:    ['analyst', 'autonomous_ai'],
+      enum:    ['analyst', 'autonomous_ai', 'automation'],
       default: 'analyst',
     },
 

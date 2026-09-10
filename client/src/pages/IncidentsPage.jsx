@@ -3,7 +3,9 @@
  *
  * Supports:
  *   - Status filtering (All, Open, Investigating, Resolved, Closed)
- *   - Status transitions (Open -> Investigating -> Resolved -> Closed)
+ *   - Automatic bidirectional synchronization with constituent threats
+ *   - One-click Resolve & Dismiss All Threats, Investigate & Ack All Threats
+ *   - Incident & correlated threats deletion with confirmation
  *   - Incident detail modal with constituent threats list & analyst notes editor
  *   - Manual Incident creation modal
  */
@@ -16,7 +18,22 @@ import Pagination from '@/components/common/Pagination';
 import Spinner from '@/components/common/Spinner';
 import SeverityBadge from '@/components/common/SeverityBadge';
 import { incidentApi } from '@/services/api';
-import { GitBranch, Filter, Plus, Clock, ShieldAlert, FileText, Save, Check } from 'lucide-react';
+import {
+  GitBranch,
+  Filter,
+  Plus,
+  Clock,
+  ShieldAlert,
+  FileText,
+  Save,
+  Check,
+  CheckCircle,
+  CheckCircle2,
+  Trash2,
+  AlertTriangle,
+  ShieldCheck,
+  RotateCcw,
+} from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import IncidentTimeline from '@/components/incidents/IncidentTimeline';
@@ -41,6 +58,10 @@ export default function IncidentsPage() {
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [notesInput, setNotesInput] = useState('');
   const [savingNotes, setSavingNotes] = useState(false);
+
+  // Delete confirmation
+  const [deleteConfirm, setDeleteConfirm] = useState(null);
+  const [deleting, setDeleting] = useState(false);
 
   // Create Modal
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -76,10 +97,24 @@ export default function IncidentsPage() {
       const { data } = await incidentApi.updateStatus(id, newStatus);
       if (data.status === 'success') {
         setIncidents((prev) => prev.map((i) => (i._id === id ? { ...i, status: newStatus } : i)));
+
         if (activeIncident?._id === id) {
           setActiveIncident((prev) => ({ ...prev, status: newStatus }));
+          // Refresh detail view so constituent threats display updated status
+          const detailRes = await incidentApi.get(id);
+          if (detailRes.data?.status === 'success') {
+            setIncidentDetail(detailRes.data.data);
+          }
         }
-        toast.success(`Incident status updated to ${newStatus}`);
+
+        const syncedCount = data.meta?.syncedThreatsCount;
+        if (syncedCount > 0) {
+          toast.success(
+            `Incident ${newStatus} — synced & updated ${syncedCount} correlated threat(s)`
+          );
+        } else {
+          toast.success(`Incident status updated to ${newStatus}`);
+        }
       }
     } catch (err) {
       toast.error('Failed to update incident status');
@@ -116,6 +151,28 @@ export default function IncidentsPage() {
     }
   };
 
+  const executeDeleteIncident = async () => {
+    if (!deleteConfirm) return;
+    setDeleting(true);
+    try {
+      const { data } = await incidentApi.delete(deleteConfirm._id, { deleteThreats: true });
+      const count = data.data?.deletedThreatsCount ?? 0;
+      toast.success(`Incident and ${count} correlated threat(s) deleted successfully`);
+
+      setIncidents((prev) => prev.filter((i) => i._id !== deleteConfirm._id));
+      if (activeIncident?._id === deleteConfirm._id) {
+        setActiveIncident(null);
+        setIncidentDetail(null);
+      }
+      setDeleteConfirm(null);
+      fetchIncidents(pagination.page, statusFilter);
+    } catch (err) {
+      toast.error('Failed to delete incident');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
   const handleCreateIncident = async (e) => {
     e.preventDefault();
     if (!newTitle.trim()) return;
@@ -145,7 +202,7 @@ export default function IncidentsPage() {
   return (
     <PageWrapper
       title="Correlated Incidents"
-      subtitle="Aggregated multi-stage threat clusters for SOC triage and investigation"
+      subtitle="Aggregated multi-stage threat clusters for SOC triage and containment"
       actions={
         <button
           onClick={() => setIsCreateOpen(true)}
@@ -203,6 +260,7 @@ export default function IncidentsPage() {
               incident={incident}
               onSelect={handleOpenDetail}
               onStatusChange={handleStatusChange}
+              onDelete={(inc) => setDeleteConfirm(inc)}
             />
           ))}
         </div>
@@ -299,6 +357,56 @@ export default function IncidentsPage() {
                 className="input w-full text-xs h-24 resize-none leading-relaxed"
               />
             </div>
+
+            {/* Dual-Sync Action Toolbar */}
+            <div className="pt-4 border-t border-white/5 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-[11px] text-slate-400 flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
+                <span>
+                  Auto-Sync Active: Actions apply to both Incident & {incidentDetail.threats?.length || 0} constituent threats
+                </span>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2">
+                {incidentDetail.status !== 'investigating' && incidentDetail.status !== 'resolved' && incidentDetail.status !== 'closed' && (
+                  <button
+                    onClick={() => handleStatusChange(incidentDetail._id, 'investigating')}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium bg-blue-500/15 hover:bg-blue-500/25 text-blue-300 border border-blue-500/30 flex items-center gap-1.5 transition-all"
+                  >
+                    <CheckCircle2 className="w-3.5 h-3.5" />
+                    <span>Investigate & Ack Threats</span>
+                  </button>
+                )}
+
+                {incidentDetail.status !== 'resolved' && incidentDetail.status !== 'closed' && (
+                  <button
+                    onClick={() => handleStatusChange(incidentDetail._id, 'resolved')}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/30 flex items-center gap-1.5 transition-all"
+                  >
+                    <CheckCircle className="w-3.5 h-3.5" />
+                    <span>Resolve & Dismiss Threats</span>
+                  </button>
+                )}
+
+                {incidentDetail.status === 'resolved' || incidentDetail.status === 'closed' ? (
+                  <button
+                    onClick={() => handleStatusChange(incidentDetail._id, 'open')}
+                    className="text-xs px-3 py-1.5 rounded-lg font-medium bg-slate-700/40 hover:bg-slate-700/60 text-slate-300 border border-slate-600/40 flex items-center gap-1.5 transition-all"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    <span>Reopen Incident</span>
+                  </button>
+                ) : null}
+
+                <button
+                  onClick={() => setDeleteConfirm(incidentDetail)}
+                  className="text-xs px-3 py-1.5 rounded-lg font-medium bg-red-500/15 hover:bg-red-500/25 text-red-300 border border-red-500/30 flex items-center gap-1.5 transition-all"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete Incident</span>
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </Modal>
@@ -360,6 +468,51 @@ export default function IncidentsPage() {
             </button>
           </div>
         </form>
+      </Modal>
+
+      {/* Delete Incident Confirmation Modal */}
+      <Modal
+        isOpen={!!deleteConfirm}
+        onClose={() => !deleting && setDeleteConfirm(null)}
+        title="Confirm Incident & Threats Deletion"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-red-500/10 border border-red-500/20 text-red-300">
+            <AlertTriangle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+            <div className="text-xs leading-relaxed">
+              <p className="font-semibold text-red-200 mb-1">Permanent Removal</p>
+              <p>
+                Are you sure you want to permanently delete incident{' '}
+                <strong className="text-white">"{deleteConfirm?.title}"</strong> and all its{' '}
+                <strong>{deleteConfirm?.threatIds?.length || deleteConfirm?.threats?.length || 0}</strong> correlated constituent threats?
+              </p>
+              <p className="mt-1 text-slate-400">
+                This will automatically remove both the incident and its threat findings from the database so you don't need to perform the operation separately on both.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-2">
+            <button
+              type="button"
+              onClick={() => setDeleteConfirm(null)}
+              disabled={deleting}
+              className="btn-ghost text-xs px-3 py-1.5"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={executeDeleteIncident}
+              disabled={deleting}
+              className="btn-danger text-xs px-3 py-1.5 flex items-center gap-1.5"
+            >
+              {deleting ? <Spinner size="sm" /> : <Trash2 className="w-3.5 h-3.5" />}
+              <span>{deleting ? 'Deleting...' : 'Delete Both'}</span>
+            </button>
+          </div>
+        </div>
       </Modal>
     </PageWrapper>
   );

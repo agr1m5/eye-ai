@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { format } from 'date-fns';
 import { ChevronDown, ChevronRight, Clock, Terminal } from 'lucide-react';
 import SeverityBadge from '@/components/common/SeverityBadge';
+import { getHumanStatus } from '@/utils/threatFormatter';
 
 const SEV_COLORS = {
   critical: { line: 'bg-red-500',    dot: 'bg-red-400 ring-red-500/40',    card: 'border-red-500/20 hover:border-red-500/40' },
@@ -58,10 +59,15 @@ function TimelineEvent({ threat, isLast }) {
                 </span>
               )}
             </div>
-            <span className="text-[10px] font-mono text-slate-500 shrink-0 flex items-center gap-1">
-              <Clock className="w-3 h-3" />
-              {ts}
-            </span>
+            <div className="flex items-center gap-2 shrink-0">
+              <span className={`text-[9px] font-medium px-2 py-0.5 rounded-full border ${getHumanStatus(threat.status).color}`}>
+                {getHumanStatus(threat.status).label}
+              </span>
+              <span className="text-[10px] font-mono text-slate-500 hidden sm:flex items-center gap-1">
+                <Clock className="w-3 h-3" />
+                {ts}
+              </span>
+            </div>
           </div>
 
           {/* Expanded details */}

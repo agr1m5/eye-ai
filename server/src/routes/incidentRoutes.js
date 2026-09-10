@@ -17,6 +17,7 @@ import {
   createIncident,
   updateIncidentStatus,
   updateIncidentNotes,
+  deleteIncident,
 } from '../controllers/incidentController.js';
 
 const router = Router();
@@ -28,5 +29,6 @@ router.post('/',                 createIncident);
 router.get('/:id',               getIncident);
 router.patch('/:id/status',      updateIncidentStatus);
 router.patch('/:id/notes',       updateIncidentNotes);
+router.delete('/:id',            deleteIncident);
 
 export default router;

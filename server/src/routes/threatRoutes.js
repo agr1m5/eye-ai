@@ -20,6 +20,9 @@ import {
   getThreatStats,
   getThreatTimeline,
   simulateThreat,
+  getThreatTypes,
+  bulkUpdateThreats,
+  bulkDeleteThreats,
 } from '../controllers/threatController.js';
 
 const router = Router();
@@ -27,12 +30,15 @@ const router = Router();
 // All threat routes require authentication
 router.use(protect);
 
-router.get('/',           listThreats);
-router.post('/simulate',  simulateThreat);
-router.get('/stats',      getThreatStats);
-router.get('/timeline',   getThreatTimeline);
-router.get('/:id',        getThreat);
-router.patch('/:id/status', updateThreatStatus);
-router.delete('/:id',     dismissThreat);
+router.get('/',               listThreats);
+router.post('/simulate',      simulateThreat);
+router.get('/types',          getThreatTypes);
+router.patch('/bulk/status',  bulkUpdateThreats);
+router.delete('/bulk',        bulkDeleteThreats);
+router.get('/stats',          getThreatStats);
+router.get('/timeline',       getThreatTimeline);
+router.get('/:id',            getThreat);
+router.patch('/:id/status',   updateThreatStatus);
+router.delete('/:id',         dismissThreat);
 
 export default router;

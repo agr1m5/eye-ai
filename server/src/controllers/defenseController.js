@@ -61,8 +61,8 @@ export async function executeContainment(req, res, next) {
           userId: req.user._id.toString(),
         });
 
-        // Broadcast to client dashboard room
-        io.of('/client').to(`user:${req.user._id}`).emit('defense:action:executed', defenseAction.toObject());
+        // Broadcast to client dashboard room on default namespace
+        io.of('/').to(`user:${req.user._id}`).emit('defense:action:executed', defenseAction.toObject());
       }
     } catch (socketErr) {
       console.warn('[DefenseController] Socket dispatch warning:', socketErr.message);

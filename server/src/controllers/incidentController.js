@@ -10,6 +10,7 @@
 import Incident from '../models/Incident.js';
 import Threat   from '../models/Threat.js';
 import { createAuditEntry } from '../services/auditService.js';
+import { syncThreatsFromIncident } from '../services/incidentSyncService.js';
 
 const PAGE_SIZE = 20;
 
@@ -70,10 +71,11 @@ export async function getIncident(req, res, next) {
       return res.status(404).json({ status: 'error', message: 'Incident not found.' });
     }
 
-    // Populate threats
+    // Populate all constituent threats
     const threats = await Threat.find({
-      _id: { $in: incident.threatIds },
-    }).lean();
+      userId: req.user._id,
+      $or: [{ _id: { $in: incident.threatIds || [] } }, { incidentId: incident._id }],
+    }).sort('-createdAt').lean();
 
     return res.status(200).json({
       status: 'success',
@@ -106,16 +108,86 @@ export async function updateIncidentStatus(req, res, next) {
       return res.status(404).json({ status: 'error', message: 'Incident not found.' });
     }
 
+    // Auto-sync constituent threats so analyst does not have to perform operation twice!
+    const syncRes = await syncThreatsFromIncident(incident._id, status, req.user._id);
+
     createAuditEntry({
       userId:     req.user._id,
       action:     'incident.status_changed',
       targetType: 'Incident',
       targetId:   incident._id,
-      metadata:   { newStatus: status, title: incident.title, severity: incident.severity },
+      metadata:   {
+        newStatus: status,
+        title: incident.title,
+        severity: incident.severity,
+        syncedThreatsCount: syncRes.modifiedCount,
+      },
       ip:         req.ip,
     });
 
-    return res.status(200).json({ status: 'success', data: incident });
+    return res.status(200).json({
+      status: 'success',
+      data: incident,
+      meta: {
+        syncedThreatsCount: syncRes.modifiedCount,
+        newThreatStatus: syncRes.newThreatStatus,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* ── DELETE /api/incidents/:id ────────────────────────────────── */
+export async function deleteIncident(req, res, next) {
+  try {
+    const { deleteThreats = 'true' } = req.query;
+    const shouldDeleteThreats = deleteThreats === 'true' || deleteThreats === true;
+
+    const incident = await Incident.findOne({
+      _id: req.params.id,
+      userId: req.user._id,
+    });
+
+    if (!incident) {
+      return res.status(404).json({ status: 'error', message: 'Incident not found.' });
+    }
+
+    let deletedThreatsCount = 0;
+    if (shouldDeleteThreats) {
+      // Delete constituent threats too
+      const delRes = await Threat.deleteMany({
+        userId: req.user._id,
+        $or: [{ incidentId: incident._id }, { _id: { $in: incident.threatIds || [] } }],
+      });
+      deletedThreatsCount = delRes.deletedCount;
+    } else {
+      // Unlink threats
+      await Threat.updateMany(
+        {
+          userId: req.user._id,
+          $or: [{ incidentId: incident._id }, { _id: { $in: incident.threatIds || [] } }],
+        },
+        { $set: { incidentId: null } }
+      );
+    }
+
+    await Incident.deleteOne({ _id: incident._id });
+
+    createAuditEntry({
+      userId:     req.user._id,
+      action:     'incident.deleted',
+      targetType: 'Incident',
+      targetId:   incident._id,
+      metadata:   { title: incident.title, deletedThreatsCount, shouldDeleteThreats },
+      ip:         req.ip,
+    });
+
+    return res.status(200).json({
+      status:  'success',
+      message: `Incident deleted${shouldDeleteThreats ? ` and ${deletedThreatsCount} constituent threat(s) removed` : ''}.`,
+      data:    { deletedThreatsCount },
+    });
   } catch (err) {
     next(err);
   }

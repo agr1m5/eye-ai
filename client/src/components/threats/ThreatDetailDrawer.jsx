@@ -25,6 +25,7 @@ import {
   BookOpen,
   ExternalLink,
   Loader2,
+  Filter,
 } from 'lucide-react';
 import SeverityBadge from '@/components/common/SeverityBadge';
 import { tiApi } from '@/services/api';
@@ -52,7 +53,7 @@ function inferMitreId(type = '') {
   return null;
 }
 
-export default function ThreatDetailDrawer({ threat, onClose, onDismiss, onAck }) {
+export default function ThreatDetailDrawer({ threat, onClose, onDismiss, onAck, onFilterType }) {
   const [ipData, setIpData] = useState(null);
   const [loadingIp, setLoadingIp] = useState(false);
   const [ipError, setIpError] = useState(null);
@@ -116,7 +117,10 @@ export default function ThreatDetailDrawer({ threat, onClose, onDismiss, onAck }
       />
 
       {/* Drawer */}
-      <div className="fixed inset-y-0 right-0 w-full max-w-xl bg-surface-900 border-l border-white/10 z-50 flex flex-col shadow-2xl">
+      <div
+        className="fixed inset-y-0 right-0 z-50 w-full max-w-xl bg-surface-900 border-l border-white/5
+                   shadow-2xl flex flex-col animate-[slideInRight_0.22s_ease-out]"
+      >
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-white/5">
           <div className="flex items-center gap-2">
@@ -145,10 +149,22 @@ export default function ThreatDetailDrawer({ threat, onClose, onDismiss, onAck }
               <h3 className="text-base font-bold text-slate-100">{human.title}</h3>
               <p className="text-xs text-slate-400 mt-0.5 leading-relaxed">{human.subtitle}</p>
             </div>
-            <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500 pt-1 border-t border-white/5">
-              <span>Code: <strong className="text-slate-400">{threat.type}</strong></span>
-              <span>·</span>
-              <span>Event ID: {threat._id}</span>
+            <div className="flex items-center justify-between text-[10px] font-mono text-slate-500 pt-1 border-t border-white/5 flex-wrap gap-2">
+              <div className="flex items-center gap-2">
+                <span>Code: <strong className="text-slate-400">{threat.type}</strong></span>
+                <span>·</span>
+                <span>Event ID: {threat._id}</span>
+              </div>
+              {onFilterType && (
+                <button
+                  type="button"
+                  onClick={() => onFilterType(threat.type)}
+                  className="flex items-center gap-1 text-[11px] font-sans font-medium text-brand-400 hover:text-brand-300 transition-colors"
+                >
+                  <Filter className="w-3 h-3" />
+                  <span>Filter all of this type</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -310,9 +326,23 @@ export default function ThreatDetailDrawer({ threat, onClose, onDismiss, onAck }
               </div>
             )}
             {threat.incidentId && (
-              <div className="flex items-center gap-1.5 text-orange-400">
-                <ShieldCheck className="w-3.5 h-3.5" />
-                <span className="text-[11px] text-orange-300">Correlated into Active Incident Cluster</span>
+              <div className="p-3 rounded-xl bg-orange-950/20 border border-orange-500/30 space-y-1.5">
+                <div className="flex items-center gap-1.5 text-orange-400">
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span className="text-xs font-semibold text-orange-300">Correlated into Active Incident Cluster</span>
+                </div>
+                <p className="text-[11px] text-slate-400 leading-relaxed">
+                  This threat is linked to an active incident. Actions taken here (acknowledge, dismiss, or delete) automatically synchronize with the parent incident so you never need to repeat them on both.
+                </p>
+                <div className="pt-0.5">
+                  <a
+                    href="/incidents"
+                    className="inline-flex items-center gap-1 text-[11px] text-brand-400 hover:text-brand-300 underline font-medium"
+                  >
+                    <span>View Correlated Incident</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
               </div>
             )}
           </div>

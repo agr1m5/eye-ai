@@ -11,6 +11,7 @@ import Threat from '../models/Threat.js';
 import { createAuditEntry } from '../services/auditService.js';
 import { getIO } from '../config/socket.js';
 import { correlateFinding } from '../services/correlationService.js';
+import { syncIncidentFromThreats } from '../services/incidentSyncService.js';
 
 const PAGE_SIZE = 25;
 
@@ -22,6 +23,7 @@ export async function listThreats(req, res, next) {
       limit    = PAGE_SIZE,
       severity,
       status,
+      type,
       sort     = '-createdAt',
       q,
       dateFrom,
@@ -31,6 +33,7 @@ export async function listThreats(req, res, next) {
     const filter = { userId: req.user._id };
     if (severity) filter.severity = severity;
     if (status)   filter.status   = status;
+    if (type)     filter.type     = type;
 
     // Full-text search across type, description, source fields
     if (q && q.trim()) {
@@ -121,6 +124,11 @@ export async function updateThreatStatus(req, res, next) {
       return res.status(404).json({ status: 'error', message: 'Threat not found.' });
     }
 
+    // Auto-sync parent incident if threat belongs to an incident
+    if (threat.incidentId) {
+      await syncIncidentFromThreats(threat.incidentId, req.user._id);
+    }
+
     createAuditEntry({
       userId:     req.user._id,
       action:     status === 'acknowledged' ? 'threat.acknowledged' : 'threat.dismissed',
@@ -149,6 +157,11 @@ export async function dismissThreat(req, res, next) {
       return res.status(404).json({ status: 'error', message: 'Threat not found.' });
     }
 
+    // Auto-sync parent incident if threat belongs to an incident
+    if (threat.incidentId) {
+      await syncIncidentFromThreats(threat.incidentId, req.user._id);
+    }
+
     createAuditEntry({
       userId:     req.user._id,
       action:     'threat.dismissed',
@@ -162,6 +175,151 @@ export async function dismissThreat(req, res, next) {
       status:  'success',
       message: 'Threat dismissed.',
       data:    threat,
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* ── GET /api/threats/types — distinct threat types & counts ── */
+export async function getThreatTypes(req, res, next) {
+  try {
+    const types = await Threat.aggregate([
+      { $match: { userId: req.user._id } },
+      {
+        $group: {
+          _id:            '$type',
+          total:          { $sum: 1 },
+          newCount:       { $sum: { $cond: [{ $eq: ['$status', 'new'] }, 1, 0] } },
+          ackCount:       { $sum: { $cond: [{ $eq: ['$status', 'acknowledged'] }, 1, 0] } },
+          dismissedCount: { $sum: { $cond: [{ $eq: ['$status', 'dismissed'] }, 1, 0] } },
+        },
+      },
+      { $sort: { total: -1 } },
+    ]);
+
+    return res.status(200).json({
+      status: 'success',
+      data: types.map((t) => ({
+        type:           t._id,
+        total:          t.total,
+        newCount:       t.newCount,
+        ackCount:       t.ackCount,
+        dismissedCount: t.dismissedCount,
+      })),
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* ── PATCH /api/threats/bulk/status — bulk update threats ─────── */
+export async function bulkUpdateThreats(req, res, next) {
+  try {
+    const { type, status, ids } = req.body;
+    const allowed = ['new', 'acknowledged', 'dismissed'];
+    if (!allowed.includes(status)) {
+      return res.status(400).json({
+        status:  'error',
+        message: `Status must be one of: ${allowed.join(', ')}.`,
+      });
+    }
+
+    const filter = { userId: req.user._id };
+    if (type) filter.type = type;
+    if (Array.isArray(ids) && ids.length > 0) {
+      filter._id = { $in: ids };
+    }
+
+    // Find affected parent incidents before update
+    const affectedIncidentIds = await Threat.find({
+      ...filter,
+      incidentId: { $ne: null },
+    }).distinct('incidentId');
+
+    const result = await Threat.updateMany(filter, { $set: { status } });
+
+    // Auto-sync all parent incidents
+    for (const incId of affectedIncidentIds) {
+      if (incId) await syncIncidentFromThreats(incId, req.user._id);
+    }
+
+    createAuditEntry({
+      userId:     req.user._id,
+      action:     `threat.bulk_${status}`,
+      targetType: 'Threat',
+      metadata:   {
+        type: type || 'custom_selection',
+        status,
+        modifiedCount: result.modifiedCount,
+        syncedIncidentsCount: affectedIncidentIds.length,
+      },
+      ip:         req.ip,
+    });
+
+    return res.status(200).json({
+      status:  'success',
+      message: `Successfully updated ${result.modifiedCount} threat(s) to "${status}".`,
+      data:    {
+        modifiedCount: result.modifiedCount,
+        syncedIncidentsCount: affectedIncidentIds.length,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+/* ── DELETE /api/threats/bulk — bulk delete threats permanently ─ */
+export async function bulkDeleteThreats(req, res, next) {
+  try {
+    const { type, ids } = req.body || req.query;
+
+    const filter = { userId: req.user._id };
+    if (type) filter.type = type;
+    if (Array.isArray(ids) && ids.length > 0) {
+      filter._id = { $in: ids };
+    }
+
+    if (!type && (!ids || ids.length === 0)) {
+      return res.status(400).json({
+        status:  'error',
+        message: 'Must specify a threat type or list of threat IDs to delete.',
+      });
+    }
+
+    // Find affected parent incidents before deleting
+    const affectedIncidentIds = await Threat.find({
+      ...filter,
+      incidentId: { $ne: null },
+    }).distinct('incidentId');
+
+    const result = await Threat.deleteMany(filter);
+
+    // Auto-sync all parent incidents (recalculate severity or auto-close if 0 threats left)
+    for (const incId of affectedIncidentIds) {
+      if (incId) await syncIncidentFromThreats(incId, req.user._id);
+    }
+
+    createAuditEntry({
+      userId:     req.user._id,
+      action:     'threat.bulk_deleted',
+      targetType: 'Threat',
+      metadata:   {
+        type: type || 'custom_selection',
+        deletedCount: result.deletedCount,
+        syncedIncidentsCount: affectedIncidentIds.length,
+      },
+      ip:         req.ip,
+    });
+
+    return res.status(200).json({
+      status:  'success',
+      message: `Successfully deleted ${result.deletedCount} threat(s).`,
+      data:    {
+        deletedCount: result.deletedCount,
+        syncedIncidentsCount: affectedIncidentIds.length,
+      },
     });
   } catch (err) {
     next(err);

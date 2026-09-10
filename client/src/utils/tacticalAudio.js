@@ -1,3 +1,4 @@
+
 /**
  * tacticalAudio.js — Pure Web Audio API Sound Synthesizer for Rakshak SOC
  *
@@ -24,7 +25,7 @@ class TacticalSoundEngine {
       }
     }
     if (this.ctx && this.ctx.state === 'suspended') {
-      this.ctx.resume().catch(() => {});
+      this.ctx.resume().catch(() => { });
     }
   }
 
@@ -59,7 +60,7 @@ class TacticalSoundEngine {
 
       osc.start();
       osc.stop(this.ctx.currentTime + 0.15);
-    } catch {}
+    } catch { }
   }
 
   /** Crisp electronic chime when a threat is neutralized or action executed */
@@ -86,7 +87,7 @@ class TacticalSoundEngine {
         osc.start(now + idx * 0.06);
         osc.stop(now + idx * 0.06 + 0.25);
       });
-    } catch {}
+    } catch { }
   }
 
   /** Tactical klaxon alert for critical breach or honeytoken trigger */
@@ -113,7 +114,7 @@ class TacticalSoundEngine {
 
       osc.start(now);
       osc.stop(now + 0.4);
-    } catch {}
+    } catch { }
   }
 }
 

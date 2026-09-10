@@ -62,6 +62,9 @@ export const threatApi = {
   updateStatus: (id, status)     => api.patch(`/threats/${id}/status`, { status }),
   dismiss:      (id)             => api.delete(`/threats/${id}`),
   simulate:     (data)           => api.post('/threats/simulate', data),
+  types:        ()               => api.get('/threats/types'),
+  bulkStatus:   (data)           => api.patch('/threats/bulk/status', data),
+  bulkDelete:   (data)           => api.delete('/threats/bulk', { data }),
 };
 
 // Correlated Incidents
@@ -71,6 +74,7 @@ export const incidentApi = {
   get:          (id)            => api.get(`/incidents/${id}`),
   updateStatus: (id, status)    => api.patch(`/incidents/${id}/status`, { status }),
   updateNotes:  (id, notes)     => api.patch(`/incidents/${id}/notes`, { notes }),
+  delete:       (id, params)    => api.delete(`/incidents/${id}`, { params }),
 };
 
 // Chat
