@@ -1,16 +1,78 @@
-# React + Vite
+# 💻 Rakshak 2.0 Client (SOC Frontend Dashboard)
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+The frontend interface for the Rakshak 2.0 Security Operations Center platform. Built with **React 18**, **Vite**, **Tailwind CSS**, **Lucide Icons**, **Chart.js**, and **Socket.IO Client**.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## ✨ Features & Interface Modules
 
-## React Compiler
+- 📊 **Real-Time SOC Command Dashboard**:
+  - Live metric KPI counters (Active Incidents, Critical Threats, Agents Online, Events/min).
+  - Dynamic severity distribution doughnut charts and event velocity line graphs.
+  - Interactive live event ticker with auto-scroll and severity-based color coding.
+- 🗺️ **Interactive Threat Map**:
+  - Visualizes geolocation origin of suspicious IPs using Three.js / Leaflet mapping.
+- 🚨 **Incident Investigation Room**:
+  - View correlated attack chains, affected assets, and timeline of events.
+  - Interactive status controls (`Open`, `Investigating`, `Contained`, `Resolved`) with audit log persistence.
+  - Add analyst investigation notes in real time.
+- 🤖 **AI Copilot Chat (SOC Analyst)**:
+  - Conversational investigation assistant with multi-turn chat history.
+  - Ask questions about MITRE tactics, log anomalies, and step-by-step remediation procedures.
+  - Markdown code syntax highlighting and quick-prompt suggestions.
+- 📁 **Forensic Log Importer**:
+  - Drag-and-drop log ingestion (`auth.log`, `access.log`, `syslog`, JSON).
+  - Instant client-side parsing summary and backend threat correlation.
+- 📄 **Compliance & Executive Reports**:
+  - Automated PDF report preview and instant download.
+- 🔗 **Agent Pairing Manager**:
+  - One-click pairing token generator for enrolling Linux and macOS endpoint agents.
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+---
 
-## Expanding the Oxlint configuration
+## 🛠️ Getting Started
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and Oxlint's TypeScript related rules in your project.
+### 1. Installation
+```bash
+npm install
+```
+
+### 2. Development Server
+Starts the Vite development server with Hot Module Replacement (HMR) and automatic API proxying to `http://localhost:5050`:
+```bash
+npm run dev
+```
+Open [http://localhost:5180](http://localhost:5180) in your browser.
+
+### 3. Production Build
+```bash
+npm run build
+```
+The compiled, optimized static assets will be output to `client/dist/`.
+
+### 4. Preview Production Build
+```bash
+npm run preview
+```
+
+---
+
+## 📁 Directory Structure
+
+```
+client/src/
+├── api/          # Axios HTTP client, interceptors, and API service functions
+├── assets/       # Static branding assets and images
+├── components/   # Reusable UI component library
+│   ├── auth/     # Login, registration, and protected route wrappers
+│   ├── chat/     # AI Copilot message bubbles, input bar, and conversation drawer
+│   ├── common/   # Modals, badges, stat cards, loading skeletons
+│   ├── dashboard/# Live event feed, severity charts, KPI overview
+│   ├── incidents/# Incident cards, filter bars, audit note forms
+│   ├── layout/   # Top navbar, sidebar navigation, responsive layout shell
+│   └── threats/  # Threat tables, inspection drawers, MITRE badges
+├── context/      # React contexts (AuthContext, SocketContext, ThemeContext)
+├── hooks/        # Custom React hooks (useLiveStats, useSocket, useThreats)
+├── pages/        # Top-level view routes (Dashboard, Threats, Incidents, Chat, Logs, Reports)
+└── utils/        # Formatters, timestamp helpers, severity theme mappings
+```

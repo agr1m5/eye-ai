@@ -1,91 +1,222 @@
-# 🛡️ Rakshak 2.0 — AI-Augmented Security Operations Center (SOC)
+# 🛡️ Rakshak 2.0 — AI-Augmented Autonomous Security Operations Center (SOC)
 
-[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-blue)](https://github.com/agr1m5/log-sage)
-[![Node.js](https://img.shields.io/badge/Node.js-18%2B%20%7C%2020%2B-green)](https://nodejs.org)
-[![Docker](https://img.shields.io/badge/Docker-Ready-2496ED)](https://www.docker.com)
-[![License](https://img.shields.io/badge/License-MIT-purple)](#)
+<p align="center">
+  <img src="client/public/vite.svg" width="80" height="80" alt="Rakshak Logo" />
+</p>
 
-Rakshak 2.0 is a modern, real-time Security Operations Center (SOC) platform with automated threat detection, cross-correlation of endpoint events, human-readable threat translation, live geographic IP intelligence mapping, and incident management.
+<p align="center">
+  <b>Next-Generation Real-Time Threat Detection, Cross-Correlation, Forensic Analysis & AI Copilot for Modern Cyber Defense.</b>
+</p>
+
+<p align="center">
+  <a href="#-quick-start"><img src="https://img.shields.io/badge/Platform-Linux%20%7C%20macOS-blue?style=for-the-badge&logo=linux" alt="Platform" /></a>
+  <a href="https://nodejs.org"><img src="https://img.shields.io/badge/Node.js-18%2B%20%7C%2020%2B%20LTS-green?style=for-the-badge&logo=node.js" alt="Node.js" /></a>
+  <a href="https://react.dev"><img src="https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react" alt="React" /></a>
+  <a href="https://www.mongodb.com"><img src="https://img.shields.io/badge/MongoDB-7.0%2B-47A248?style=for-the-badge&logo=mongodb" alt="MongoDB" /></a>
+  <a href="https://socket.io"><img src="https://img.shields.io/badge/Socket.IO-4.7%2B-010101?style=for-the-badge&logo=socket.io" alt="Socket.IO" /></a>
+  <a href="https://www.docker.com"><img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker" alt="Docker" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-purple?style=for-the-badge" alt="License" /></a>
+</p>
 
 ---
 
-## ✨ Features
+## 📖 Overview
 
-- ⚡ **Live Telemetry & Endpoint Monitoring:** Streams real-time system logs (`journalctl` / `auth.log` on Linux, Unified Log on macOS), network connections (`ss` / `lsof`), and process execution (`ps`).
-- 🧠 **Smart Translation Layer:** Translates complex MITRE ATT&CK techniques, raw audit logs, and technical telemetry into plain, human-readable explanations with recommended remediation steps.
-- 🌍 **Interactive Global Threat Map:** Visualizes origin countries, cities, and coordinates of external threat IPs in real time with Leaflet.
-- 🔍 **Incident Management & Correlation:** Correlates multiple related findings into cohesive incident timelines with state tracking (Open, Investigating, Remediated).
-- 📜 **Analyst Audit Trail:** Tracks all investigator actions (status updates, notes, manual incident triggers) for compliance and accountability.
-- 🐧 **Native Linux Support:** Zero-config Docker Compose stack, executable shell launcher (`start-linux.sh`), and background `systemd` service for continuous monitoring.
+**Rakshak 2.0** is an enterprise-grade, real-time Security Operations Center (SOC) platform designed to defend infrastructure and endpoints against emerging threats. It combines lightweight, edge-native telemetry collectors with backend correlation engines, interactive threat visualizers, and a local or cloud-powered **AI SOC Analyst Copilot**.
+
+Whether monitoring a standalone workstation or a fleet of Linux/macOS servers, Rakshak provides zero-overhead log processing, instant alert translation, automated incident grouping, and compliance reporting.
 
 ---
 
-## 🚀 Quick Start on Linux
+## ✨ Key Features
 
-### Option A: 1-Click Launch with Docker (Fastest)
+| Feature | Description |
+|---|---|
+| ⚡ **Live Telemetry Gateway** | Bi-directional WebSocket pipeline streaming events, process diffs, network connections, and system auth logs in real time. |
+| 🧠 **AI SOC Analyst Copilot** | Multi-turn conversational AI (powered by **Ollama / Llama 3.2** locally or OpenAI) that explains complex threats, suggests remediation, and analyzes logs. |
+| 🎯 **Automated MITRE ATT&CK Mapping** | Automatically tags detected threats with standard MITRE tactics, techniques, and severity scoring (Critical, High, Medium, Low). |
+| 🗺️ **Interactive Global Threat Map** | Real-time geospatial mapping visualizing external attack IP locations, coordinates, and origin countries. |
+| 🚨 **Incident Correlation & Timeline** | Automatically correlates related security events sharing an entity or IP into unified incident cases with full audit notes. |
+| 📁 **Forensic Log Importer** | Ingests and extracts indicators of compromise (IoCs) from raw uploads (`auth.log`, `access.log`, `syslog`, JSON). |
+| 📄 **Executive PDF Reporting** | Generates professional, printable compliance and incident summary reports on demand. |
+| 🍯 **Honeytoken Deception Defense** | Embedded canary file tripwires detecting unauthorized file access and credential tampering. |
+| 🐧 **Native Linux & macOS Support** | Out-of-the-box launchers, Docker Compose support, and native `systemd` daemon automation. |
+
+---
+
+## 🏗️ System Architecture
+
+```
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                       Rakshak Web SOC Client                                │
+│       React 18 • Vite • Tailwind CSS • Lucide • Chart.js • Leaflet          │
+└──────────────────────────────────────┬──────────────────────────────────────┘
+                                       │ HTTP REST / WebSocket (Port 5180 ➔ 5050)
+┌──────────────────────────────────────▼──────────────────────────────────────┐
+│                       Rakshak SOC Server Engine                             │
+│       Node.js • Express • Socket.IO • Mongoose • PDFKit • Security Rules    │
+├──────────────────────────────┬───────────────────────────────┬──────────────┤
+│                              │                               │              │
+│  ┌────────────────────────┐  │  ┌─────────────────────────┐  │  ┌─────────┐ │
+│  │   MongoDB Database     │  │  │   AI Copilot Engine     │  │  │ GeoIP   │ │
+│  │   Threats / Incidents  │  │  │   (Ollama / OpenAI)     │  │  │ Intel   │ │
+│  └────────────────────────┘  │  └─────────────────────────┘  │  └─────────┘ │
+└──────────────────────────────▲───────────────────────────────┴──────────────┘
+                               │ Authenticated Agent Protocol (HMAC Token)
+┌──────────────────────────────┴──────────────────────────────────────────────┐
+│                    Rakshak Autonomous Endpoint Agent                        │
+│  • Linux: journalctl / auth.log • ss socket audit • ps process tree         │
+│  • macOS: Unified Log stream • lsof socket audit • POSIX process snapshot   │
+│  • Edge Classifiers: SQLi, XSS, Path Traversal, Brute-Force, Honeytokens   │
+└─────────────────────────────────────────────────────────────────────────────┘
+```
+
+---
+
+## 🚀 Quick Start
+
+### Option 1: One-Command Automated Launcher (Recommended)
+
+Clone the repository and run the interactive launcher:
+```bash
+git clone https://github.com/agr1m5/log-sage.git
+cd log-sage
+
+# Launch full Web SOC + Agent
+./start.sh
+
+# Or for Native Desktop Electron Window:
+./start.sh desktop
+```
+
+*For Linux-specific environments, you can also use `./start-linux.sh`.*
+
+---
+
+### Option 2: Docker Compose (Zero-Config Container Stack)
+
+Run MongoDB, the Backend Server, and the Nginx-optimized Frontend Client via Docker:
 ```bash
 docker compose up -d
 ```
-- **Web Dashboard:** [http://localhost:5180](http://localhost:5180)
-- **API Server:** [http://localhost:5000](http://localhost:5000)
-
-### Option B: Native Host Execution
-```bash
-chmod +x start-linux.sh
-./start-linux.sh
-```
-
-### Option C: Run Local Telemetry Agent
-```bash
-# Foreground
-./start-linux.sh --agent
-
-# Or install as a 24/7 background systemd daemon
-sudo ./start-linux.sh --install-service
-```
-
-📖 **Detailed Linux instructions:** Read [LINUX_GUIDE.md](file:///Users/agrimgupta/Desktop/Rakshak2.0/LINUX_GUIDE.md).
+- **Web Dashboard**: [http://localhost:5180](http://localhost:5180)
+- **API Server**: [http://localhost:5000](http://localhost:5000)
+- **MongoDB**: `localhost:27017`
 
 ---
 
-## 🍏 Quick Start on macOS
+### Option 3: Manual Monorepo Setup
 
+#### 1. Install Dependencies
 ```bash
-# Install dependencies
 npm install
+```
 
-# Start development client & server
+#### 2. Configure Environment Variables
+```bash
+# Server configuration
+cp server/.env.example server/.env
+
+# Agent configuration
+cp agent/.env.example agent/.env
+```
+
+#### 3. Start Development Services
+```bash
+# Terminal 1: Start Client and Server concurrently
 npm run dev
 
-# In another terminal, start the local endpoint agent
+# Terminal 2: Start Endpoint Telemetry Agent
 npm run agent
 ```
 
+Access the dashboard at **[http://localhost:5180](http://localhost:5180)**.
+
 ---
 
-## 🏗️ Architecture
+## 🤖 Local AI Copilot Setup (Ollama)
+
+Rakshak 2.0 includes native support for running **100% private, local AI models** via Ollama:
+
+1. Install [Ollama](https://ollama.com):
+   ```bash
+   # macOS: Download from ollama.com or brew install ollama
+   # Linux:
+   curl -fsSL https://ollama.com/install.sh | sh
+   ```
+2. Pull the recommended security analyst model:
+   ```bash
+   ollama pull llama3.2:latest
+   ```
+3. Start the Ollama server (if not already running as a service):
+   ```bash
+   ollama serve
+   ```
+4. Verify `server/.env` contains:
+   ```env
+   AI_PROVIDER=ollama
+   OLLAMA_BASE_URL=http://localhost:11434
+   OLLAMA_MODEL=llama3.2:latest
+   ```
+
+*(Alternatively, set `AI_PROVIDER=openai` and specify `OPENAI_API_KEY` in `server/.env` to use cloud models).*
+
+---
+
+## 📡 Agent Pairing Flow
+
+1. Open the Rakshak Dashboard at [http://localhost:5180](http://localhost:5180).
+2. Navigate to **Agent Pairing** in the navigation sidebar.
+3. Click **Pair this device** to generate a cryptographically signed registration token.
+4. Copy the generated token into `agent/.env`:
+   ```env
+   AGENT_TOKEN=your_generated_token_here
+   ```
+5. Start or restart the agent (`npm run agent` or `sudo systemctl restart rakshak-agent`).
+
+---
+
+## 📂 Repository Structure
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                    Rakshak SOC Client                       │
-│     React 18 + Vite + Tailwind CSS + Lucide Icons + Leaflet  │
-└──────────────────────────────┬──────────────────────────────┘
-                               │ WebSocket (Socket.io) / REST
-┌──────────────────────────────▼──────────────────────────────┐
-│                    Rakshak SOC Server                       │
-│     Node.js + Express + MongoDB + GeoIP + JWT Auth          │
-└──────────────────────────────▲──────────────────────────────┘
-                               │ Agent Socket.io Protocol
-┌──────────────────────────────┴──────────────────────────────┐
-│                  Rakshak Endpoint Agent                     │
-│  - System Logs (journalctl / auth.log / macOS Unified Log)  │
-│  - Network Sockets (ss / lsof)                              │
-│  - Processes (ps POSIX snapshots)                           │
-│  - Local Regex Classifier & Correlation Engine              │
-└─────────────────────────────────────────────────────────────┘
+.
+├── .github/                # GitHub Actions CI workflows & issue templates
+├── agent/                  # Endpoint telemetry agent (Linux & macOS collectors)
+│   ├── src/collectors/     # System log, network, process & honeytoken collectors
+│   ├── src/detection/      # Regex signature classifiers & brute-force trackers
+│   ├── src/correlation/    # Sliding-window incident correlation engine
+│   └── src/transport/      # Resilient Socket.IO transport client with offline queue
+├── client/                 # React 18 + Vite SOC frontend dashboard
+│   ├── src/components/     # Modular SOC UI components (threats, incidents, charts, chat)
+│   ├── src/context/        # Auth & real-time Socket providers
+│   └── src/pages/          # Top-level view routes & investigation rooms
+├── electron/               # Native Electron desktop wrapper and preload bridge
+├── server/                 # Express + Socket.IO backend REST API
+│   ├── src/controllers/    # Auth, threat, incident, report & chat handlers
+│   ├── src/models/         # Mongoose database schemas
+│   ├── src/services/       # AI LLM service, GeoIP service, PDF generator
+│   └── src/routes/         # Protected API route endpoints
+├── docker-compose.yml      # Multi-container orchestration stack
+├── start.sh                # Universal startup and bootstrap script
+└── start-linux.sh          # Linux-tailored environment manager & systemd installer
 ```
+
+---
+
+## 🛡️ Default Testing Credentials
+
+For local testing, pre-seeded administrator access:
+- **Email**: `testsoc@rakshak.local`
+- **Password**: `Rakshak@123`
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for branch naming standards, commit conventions, and pull request procedures.
 
 ---
 
 ## 📄 License
-MIT License. Built for proactive security operations.
+
+This project is licensed under the MIT License — see the [LICENSE](LICENSE) file for details.
