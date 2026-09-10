@@ -1,6 +1,6 @@
-# 🚀 Rakshak 2.0 Server (Backend SOC Engine)
+# 🚀 Eye Server (Backend SOC Engine)
 
-The backend SOC engine for Rakshak 2.0. Built with **Node.js**, **Express**, **MongoDB (Mongoose)**, and **Socket.IO** to handle high-throughput event ingestion, live threat correlation, AI copilot intelligence, and forensic log analysis.
+The backend SOC engine for Eye. Built with **Node.js**, **Express**, **MongoDB (Mongoose)**, and **Socket.IO** to handle high-throughput event ingestion, live threat correlation, AI copilot intelligence, and forensic log analysis.
 
 ---
 
@@ -28,7 +28,7 @@ Key environment variables:
 |---|---|---|
 | `PORT` | `5050` | Server listening port |
 | `NODE_ENV` | `development` | Environment mode (`development` / `production`) |
-| `MONGODB_URI` | `mongodb://localhost:27017/rakshak_live` | MongoDB connection URI |
+| `MONGODB_URI` | `mongodb://localhost:27017/eye_live` | MongoDB connection URI |
 | `JWT_SECRET` | *(random 32+ char key)* | Secret key for analyst JWT tokens |
 | `AGENT_TOKEN_SECRET` | *(random 32+ char key)* | Secret key for signing endpoint agent tokens |
 | `AI_PROVIDER` | `ollama` | AI Provider (`ollama` or `openai`) |

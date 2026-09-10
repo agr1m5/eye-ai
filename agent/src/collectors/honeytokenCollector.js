@@ -8,7 +8,7 @@ import fs from 'fs';
 import path from 'path';
 import os from 'os';
 
-const CANARY_DIR = path.join(os.homedir(), '.rakshak');
+const CANARY_DIR = path.join(os.homedir(), '.eye');
 const CANARY_FILE = path.join(CANARY_DIR, 'canary_aws_keys.env');
 
 const CANARY_CONTENT = `# ==========================================================

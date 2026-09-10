@@ -1,5 +1,5 @@
 /**
- * User Model — Rakshak Live SOC
+ * User Model — Eye Live SOC
  *
  * Represents an analyst or admin account.
  *

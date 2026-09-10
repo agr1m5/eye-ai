@@ -79,7 +79,7 @@ function formatMemory(bytes) {
 export default function DashboardPage() {
   const navigate = useNavigate();
   const [drillModalOpen, setDrillModalOpen] = useState(false);
-  const [autopilot, setAutopilot] = useState(() => localStorage.getItem('rakshak_autopilot') === 'true');
+  const [autopilot, setAutopilot] = useState(() => localStorage.getItem('eye_autopilot') === 'true');
   const [isMuted, setIsMuted] = useState(() => (tacticalAudio ? tacticalAudio.isMuted() : false));
 
   // Shared attack state lifted from AttackChainGraph — drives header sync
@@ -119,7 +119,7 @@ export default function DashboardPage() {
   const handleToggleAutopilot = () => {
     const next = !autopilot;
     setAutopilot(next);
-    localStorage.setItem('rakshak_autopilot', String(next));
+    localStorage.setItem('eye_autopilot', String(next));
     if (next) {
       tacticalAudio.playNeutralized();
       toast.success('🛡️ ADG Autopilot ARMED: Critical & High threats will be auto-neutralized!', {

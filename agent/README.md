@@ -1,6 +1,6 @@
-# 📡 Rakshak 2.0 Endpoint Monitoring Agent
+# 📡 Eye Endpoint Monitoring Agent
 
-The lightweight, autonomous endpoint telemetry agent for Rakshak 2.0. Runs locally on **Linux** and **macOS** hosts to collect system logs, process events, and network sockets, classify threats **entirely on the edge**, and stream high-fidelity findings to your Rakshak SOC Server.
+The lightweight, autonomous endpoint telemetry agent for Eye. Runs locally on **Linux** and **macOS** hosts to collect system logs, process events, and network sockets, classify threats **entirely on the edge**, and stream high-fidelity findings to your Eye SOC Server.
 
 ---
 
@@ -19,7 +19,7 @@ The lightweight, autonomous endpoint telemetry agent for Rakshak 2.0. Runs local
 ## 🛠️ Setup & Execution
 
 ### 1. Pairing the Agent
-1. Open the Rakshak Web Dashboard ([http://localhost:5180](http://localhost:5180)).
+1. Open the Eye Web Dashboard ([http://localhost:5180](http://localhost:5180)).
 2. Navigate to **Agent Pairing** in the sidebar.
 3. Click **Pair this device** to generate a signed pairing token.
 4. Copy the token into your `agent/.env` file:
@@ -43,13 +43,13 @@ sudo ./start-linux.sh --install-service
 Service management commands:
 ```bash
 # Check service status
-sudo systemctl status rakshak-agent
+sudo systemctl status eye-agent
 
 # View live agent logs
-sudo journalctl -u rakshak-agent -f
+sudo journalctl -u eye-agent -f
 
 # Restart daemon
-sudo systemctl restart rakshak-agent
+sudo systemctl restart eye-agent
 ```
 
 ---

@@ -1,5 +1,5 @@
 /**
- * Chat Model — Rakshak Live SOC
+ * Chat Model — Eye Live SOC
  *
  * Represents a single AI analyst chat session.
  * Each document holds the full conversation history as an embedded

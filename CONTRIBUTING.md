@@ -1,6 +1,6 @@
-# Contributing to Rakshak 2.0 🛡️
+# Contributing to Eye 🛡️
 
-Thank you for your interest in contributing to **Rakshak 2.0**! We welcome contributions to improve our real-time SOC monitoring, threat detection rules, AI copilot capabilities, and UI/UX.
+Thank you for your interest in contributing to **Eye**! We welcome contributions to improve our real-time SOC monitoring, threat detection rules, AI copilot capabilities, and UI/UX.
 
 ---
 
@@ -77,7 +77,7 @@ Before submitting a Pull Request, ensure that:
 
 ## 🔒 Security Vulnerability Reporting
 
-If you discover a security vulnerability in Rakshak, please do **NOT** open a public issue. Instead, disclose it responsibly by contacting the maintainers or emailing the security contact specified in the repository.
+If you discover a security vulnerability in Eye, please do **NOT** open a public issue. Instead, disclose it responsibly by contacting the maintainers or emailing the security contact specified in the repository.
 
 ---
 

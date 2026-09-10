@@ -1,5 +1,5 @@
 /**
- * ImportedLog Model — Rakshak Live SOC
+ * ImportedLog Model — Eye Live SOC
  *
  * Tracks a log file that was manually uploaded by an analyst
  * (the secondary ingestion path, complementing the live agent).

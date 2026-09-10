@@ -1,5 +1,5 @@
 /**
- * threatController.js — Threat CRUD for Rakshak Live SOC.
+ * threatController.js — Threat CRUD for Eye Live SOC.
  *
  * Routes:
  *   GET    /api/threats           — paginated list with filters

@@ -1,5 +1,5 @@
 /**
- * HostActivity Model — Rakshak Live SOC
+ * HostActivity Model — Eye Live SOC
  *
  * Records continuous endpoint and user activity (processes, network connections,
  * system authentication, and terminal commands) streamed by the local agent.

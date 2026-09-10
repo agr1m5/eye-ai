@@ -1,6 +1,6 @@
-# 💻 Rakshak 2.0 Client (SOC Frontend Dashboard)
+# 💻 Eye Client (SOC Frontend Dashboard)
 
-The frontend interface for the Rakshak 2.0 Security Operations Center platform. Built with **React 18**, **Vite**, **Tailwind CSS**, **Lucide Icons**, **Chart.js**, and **Socket.IO Client**.
+The frontend interface for the Eye Security Operations Center platform. Built with **React 18**, **Vite**, **Tailwind CSS**, **Lucide Icons**, **Chart.js**, and **Socket.IO Client**.
 
 ---
 

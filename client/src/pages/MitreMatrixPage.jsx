@@ -17,7 +17,7 @@ import { Shield, Target, Eye, EyeOff } from 'lucide-react';
 import { format } from 'date-fns';
 
 /* ── MITRE Technique catalogue ─────────────────────────────────
-   Source: MITRE ATT&CK Enterprise (subset covering Rakshak's inferred techniques)
+   Source: MITRE ATT&CK Enterprise (subset covering Eye's inferred techniques)
    Arranged by tactic for the matrix display.
 ──────────────────────────────────────────────────────────────── */
 const TACTICS = [

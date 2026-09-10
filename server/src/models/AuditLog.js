@@ -1,5 +1,5 @@
 /**
- * AuditLog Model — Rakshak Live SOC
+ * AuditLog Model — Eye Live SOC
  *
  * Immutable record of significant analyst actions for compliance,
  * forensics, and SOC-2 audit trail requirements.

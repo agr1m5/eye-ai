@@ -150,7 +150,7 @@ export default function DefensePage() {
             </div>
           </div>
           <p className="text-2xl font-bold font-mono text-emerald-400">ARMED</p>
-          <span className="text-[11px] text-slate-500 font-mono">~/.rakshak/canary.env Active</span>
+          <span className="text-[11px] text-slate-500 font-mono">~/.eye/canary.env Active</span>
         </div>
       </div>
 

@@ -188,7 +188,7 @@ async function generatePDF(report, user) {
       // ── Footer ───────────────────────────────────────────────
       doc.moveDown(3);
       doc.fontSize(7).fillColor('#94a3b8')
-         .text('This report was generated automatically by Rakshak Live SOC. Handle as CONFIDENTIAL.',
+         .text('This report was generated automatically by Eye Live SOC. Handle as CONFIDENTIAL.',
                { align: 'center' });
 
       doc.end();

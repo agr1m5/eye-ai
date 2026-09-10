@@ -1,5 +1,5 @@
 /**
- * Incident Model — Rakshak Live SOC
+ * Incident Model — Eye Live SOC
  *
  * Represents a correlated cluster of related Threat findings.
  * The backend (or AI agent) groups threats that appear related

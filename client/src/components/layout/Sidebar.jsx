@@ -2,7 +2,7 @@
  * Sidebar — the main navigation rail.
  *
  * Renders:
- *  - Rakshak Live brand mark
+ *  - Eye Live brand mark
  *  - Live agent status badge
  *  - Primary nav links (Dashboard, Threats, Incidents, Chat, Reports, Log Import)
  *  - Bottom section: Settings, Logout
@@ -63,7 +63,7 @@ export default function Sidebar() {
           )}
         </div>
         <div>
-          <h1 className="text-sm font-bold text-slate-100 leading-tight">Rakshak Live</h1>
+          <h1 className="text-sm font-bold text-slate-100 leading-tight">Eye Live</h1>
           <p className="text-[10px] text-slate-500 leading-tight">Security Operations Center</p>
         </div>
       </div>

@@ -56,7 +56,7 @@ function buildSlackPayload(threat) {
         elements: [
           {
             type: 'mrkdwn',
-            text: '_Rakshak 2.0 SOC | Automated Detection Pipeline_',
+            text: '_Eye SOC | Automated Detection Pipeline_',
           },
         ],
       },
@@ -76,7 +76,7 @@ function buildGenericPayload(threat) {
     description: threat.description,
     threatId:  threat._id?.toString(),
     timestamp: new Date(threat.createdAt || Date.now()).toISOString(),
-    source_system: 'rakshak-soc-v2',
+    source_system: 'eye-soc-v2',
   };
 }
 

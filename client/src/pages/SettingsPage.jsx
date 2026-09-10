@@ -130,7 +130,7 @@ export default function SettingsPage() {
               <label className="block text-xs text-slate-500 mb-1 font-medium">Analyst Email</label>
               <input
                 className="input w-full text-xs font-mono"
-                value={user?.email || 'analyst@rakshak.local'}
+                value={user?.email || 'analyst@eye.local'}
                 disabled
               />
             </div>
@@ -250,7 +250,7 @@ export default function SettingsPage() {
             </div>
 
             <p className="text-xs text-slate-400 leading-relaxed">
-              The Rakshak telemetry agent requires explicit user consent before inspecting system activity.
+              The Eye telemetry agent requires explicit user consent before inspecting system activity.
               All data processing occurs strictly on-device with zero external raw data exfiltration:
             </p>
 
@@ -300,7 +300,7 @@ export default function SettingsPage() {
                   <span>Canary Decoy Honeytoken</span>
                 </div>
                 <p className="text-[11px] text-slate-400">
-                  Monitors canary trap files in <code className="text-accent-400 font-mono">~/.rakshak/canary.env</code> for unauthorized tampering.
+                  Monitors canary trap files in <code className="text-accent-400 font-mono">~/.eye/canary.env</code> for unauthorized tampering.
                 </p>
                 <span className="inline-block text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-800">
                   Permission Granted

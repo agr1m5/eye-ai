@@ -9,7 +9,7 @@ import path from 'path';
 import os from 'os';
 import readline from 'readline';
 
-const CONSENT_DIR = path.join(os.homedir(), '.rakshak');
+const CONSENT_DIR = path.join(os.homedir(), '.eye');
 const CONSENT_FILE = path.join(CONSENT_DIR, 'device_consent.json');
 
 /**
@@ -86,7 +86,7 @@ export async function ensureDevicePermissionGranted() {
     console.log('  [✓] System Auth Logs       : Streams authentication, sudo, and SSH logs');
     console.log('  [✓] Process Tree Audit     : Enumerates and diffs active processes (ps)');
     console.log('  [✓] Network Socket Monitor : Audits listening ports and TCP sockets (lsof/ss)');
-    console.log('  [✓] Canary Honeytoken Trap : Watches decoy credentials in ~/.rakshak');
+    console.log('  [✓] Canary Honeytoken Trap : Watches decoy credentials in ~/.eye');
     console.log('');
     console.log('🔒 PRIVACY GUARANTEE:');
     console.log('  • All raw logs, process arguments, and commands stay strictly local on this host.');
@@ -99,7 +99,7 @@ export async function ensureDevicePermissionGranted() {
     });
 
     const answer = await new Promise((resolve) => {
-      rl.question('\nDo you authorize Rakshak to access and monitor this device? [y/N]: ', (ans) => {
+      rl.question('\nDo you authorize Eye to access and monitor this device? [y/N]: ', (ans) => {
         rl.close();
         resolve((ans || '').trim().toLowerCase());
       });
@@ -120,7 +120,7 @@ export async function ensureDevicePermissionGranted() {
   // Non-interactive (daemon / headless service) without prior consent
   console.error('\n' + '!'.repeat(78));
   console.error('❌ [SECURITY ERROR] Device monitoring permission has NOT been granted on this machine.');
-  console.error('Rakshak requires explicit authorization before accessing host telemetry.');
+  console.error('Eye requires explicit authorization before accessing host telemetry.');
   console.error('');
   console.error('To grant permission:');
   console.error('  1. Run "npm run agent" in an interactive terminal to approve the prompt.');

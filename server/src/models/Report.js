@@ -1,5 +1,5 @@
 /**
- * Report Model — Rakshak Live SOC
+ * Report Model — Eye Live SOC
  *
  * Tracks a PDF incident report that was requested by an analyst.
  * Report generation is async (the PDF is built server-side by a worker

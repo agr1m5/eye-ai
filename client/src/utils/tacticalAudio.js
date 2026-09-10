@@ -1,6 +1,6 @@
 
 /**
- * tacticalAudio.js — Pure Web Audio API Sound Synthesizer for Rakshak SOC
+ * tacticalAudio.js — Pure Web Audio API Sound Synthesizer for Eye SOC
  *
  * Generates futuristic cyber sound effects entirely in the browser
  * with zero external asset dependencies.

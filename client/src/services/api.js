@@ -18,7 +18,7 @@ const api = axios.create({
 /* ── Request interceptor ────────────────────────────────────── */
 api.interceptors.request.use((reqConfig) => {
   try {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('rakshak_token') : null;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('eye_token') : null;
     if (token) {
       reqConfig.headers['Authorization'] = `Bearer ${token}`;
     }
@@ -33,7 +33,7 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       // Let AuthContext handle the state; just navigate away.
       // We post a custom event so AuthContext can react without a circular import.
-      window.dispatchEvent(new Event('rakshak:unauthorized'));
+      window.dispatchEvent(new Event('eye:unauthorized'));
     }
     return Promise.reject(err);
   }

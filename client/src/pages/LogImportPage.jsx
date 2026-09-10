@@ -139,7 +139,7 @@ export default function LogImportPage() {
         <Upload className="w-4 h-4 shrink-0 mt-0.5" />
         <span>
           Secondary Ingestion Pipeline: Parse exported auth logs, Nginx/Apache logs, or firewall telemetry.
-          Rakshak inspects entries for SQLi, XSS, Brute Force, Command Injections, and anomalous reconnaissance.
+          Eye inspects entries for SQLi, XSS, Brute Force, Command Injections, and anomalous reconnaissance.
         </span>
       </div>
 

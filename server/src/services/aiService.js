@@ -8,7 +8,7 @@
  */
 import { config } from '../config/env.js';
 
-const SYSTEM_PROMPT = `You are Rakshak AI, an elite Tier-3 Autonomous SOC Analyst and Active Defense Command Assistant.
+const SYSTEM_PROMPT = `You are Eye AI, an elite Tier-3 Autonomous SOC Analyst and Active Defense Command Assistant.
 You provide precise, actionable, and technically rigorous security guidance.
 Format your responses with clear markdown headings, bullet points, and code snippets when helpful.
 Include relevant MITRE ATT&CK technique IDs (e.g. T1059), severity ratings, and concrete mitigation steps.
@@ -19,7 +19,7 @@ When investigating threats or when an analyst requests containment, you can sugg
 [ACTION:kill_process:TARGET_PID] — Terminate a compromised process PID via SIGKILL
 [ACTION:isolate_host:HOST_NAME] — Isolate the host endpoint from external egress
 
-The Rakshak interface renders interactive one-click SOAR execution buttons for these action tags.`;
+The Eye interface renders interactive one-click SOAR execution buttons for these action tags.`;
 
 /**
  * Embedded Knowledge Engine for offline or fallback SOC guidance.
@@ -153,7 +153,7 @@ sudo iptables -A INPUT -s <OFFENDING_IP> -j DROP
   // Default intelligent SOC guidance
   return `### 🛡️ SOC Security Analysis: ${query.slice(0, 50)}
 
-Thank you for consulting Rakshak AI. Here is the technical security assessment:
+Thank you for consulting Eye AI. Here is the technical security assessment:
 
 #### 1. Security Overview
 Your inquiry regarding "${query}" involves security posture, threat mitigation, or defensive operations. When evaluating this scenario:
@@ -264,7 +264,7 @@ export async function generateSecurityResponse({ messages = [], contextThreats =
   // 3. Fallback to Embedded Expert Cybersecurity Knowledge Engine
   return {
     content: getExpertKnowledgeResponse(latestMessage, messages),
-    provider: 'rakshak-expert-engine',
+    provider: 'eye-expert-engine',
     model: 'soc-analyst-v2',
   };
 }
@@ -295,7 +295,7 @@ export async function generateActivitySuggestions({ activity }) {
       safetyVerdict: 'threat',
       badgeText: `Security Threat (${(severity || 'high').toUpperCase()})`,
       summary: `This activity triggered a security alert for "${activity.threatType || 'suspicious activity'}".`,
-      explanation: `Rakshak detected an anomalous pattern: ${description}. This may indicate unauthorized execution, remote injection, or privilege escalation.`,
+      explanation: `Eye detected an anomalous pattern: ${description}. This may indicate unauthorized execution, remote injection, or privilege escalation.`,
       recommendations: [
         'Isolate the host or suspend the active process immediately.',
         pid ? `Inspect child/parent processes associated with PID ${pid}.` : 'Investigate the initiating executable.',

@@ -31,7 +31,7 @@ export const config = {
 export function assertConfigured() {
   if (!config.agentToken) {
     throw new Error(
-      "AGENT_TOKEN is not set. Pair this device from the Rakshak dashboard " +
+      "AGENT_TOKEN is not set. Pair this device from the Eye dashboard " +
       "(Settings > Local SOC Agent Pairing) and copy the token into agent/.env"
     );
   }

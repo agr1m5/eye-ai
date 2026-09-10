@@ -12,7 +12,7 @@ const AuthContext = createContext(null);
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
     try {
-      const storedUser = localStorage.getItem('rakshak_user');
+      const storedUser = localStorage.getItem('eye_user');
       return storedUser ? JSON.parse(storedUser) : null;
     } catch {
       return null;
@@ -21,7 +21,7 @@ export function AuthProvider({ children }) {
 
   const [token, setToken] = useState(() => {
     try {
-      const storedToken = localStorage.getItem('rakshak_token');
+      const storedToken = localStorage.getItem('eye_token');
       if (storedToken) {
         api.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
       }
@@ -43,8 +43,8 @@ export function AuthProvider({ children }) {
       const { data } = await api.post('/auth/login', { email, password });
       setUser(data.user);
       setToken(data.token);
-      localStorage.setItem('rakshak_user', JSON.stringify(data.user));
-      localStorage.setItem('rakshak_token', data.token);
+      localStorage.setItem('eye_user', JSON.stringify(data.user));
+      localStorage.setItem('eye_token', data.token);
       api.defaults.headers.common['Authorization'] = `Bearer ${data.token}`;
       return data.user;
     } finally {
@@ -76,8 +76,8 @@ export function AuthProvider({ children }) {
     } finally {
       setUser(null);
       setToken(null);
-      localStorage.removeItem('rakshak_user');
-      localStorage.removeItem('rakshak_token');
+      localStorage.removeItem('eye_user');
+      localStorage.removeItem('eye_token');
       delete api.defaults.headers.common['Authorization'];
     }
   }, []);
@@ -88,8 +88,8 @@ export function AuthProvider({ children }) {
       logout();
     };
 
-    window.addEventListener('rakshak:unauthorized', handleUnauthorized);
-    return () => window.removeEventListener('rakshak:unauthorized', handleUnauthorized);
+    window.addEventListener('eye:unauthorized', handleUnauthorized);
+    return () => window.removeEventListener('eye:unauthorized', handleUnauthorized);
   }, [logout]);
 
   const value = { user, token, loading, login, signup, logout, isAuthenticated: !!token };

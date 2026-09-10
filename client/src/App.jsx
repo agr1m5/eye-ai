@@ -5,7 +5,7 @@
  *  1. Wraps everything in AuthProvider + SocketProvider
  *  2. Declares all React Router routes
  *  3. Implements a ProtectedRoute guard — unauthenticated users go to /login
- *  4. Listens for the 'rakshak:unauthorized' event (from Axios interceptor)
+ *  4. Listens for the 'eye:unauthorized' event (from Axios interceptor)
  *     and forces logout/redirect without a circular import
  *
  * Route structure:
@@ -60,7 +60,7 @@ function ProtectedRoute({ children }) {
 }
 
 /* ── UnauthorizedWatcher ────────────────────────────────────
-   Listens for the 'rakshak:unauthorized' custom event fired
+   Listens for the 'eye:unauthorized' custom event fired
    by the Axios response interceptor on a 401 response.
    Clears auth state and redirects to login.
 ───────────────────────────────────────────────────────────── */
@@ -73,8 +73,8 @@ function UnauthorizedWatcher() {
       await logout();
       navigate('/login', { replace: true });
     };
-    window.addEventListener('rakshak:unauthorized', handler);
-    return () => window.removeEventListener('rakshak:unauthorized', handler);
+    window.addEventListener('eye:unauthorized', handler);
+    return () => window.removeEventListener('eye:unauthorized', handler);
   }, [logout, navigate]);
 
   return null;

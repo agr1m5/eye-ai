@@ -1,5 +1,5 @@
 /**
- * geoService.js — IP Geolocation Enrichment for Rakshak SOC.
+ * geoService.js — IP Geolocation Enrichment for Eye SOC.
  *
  * Uses ip-api.com for public IPs with in-memory TTL caching,
  * and high-fidelity deterministic cyber origin geocoding for

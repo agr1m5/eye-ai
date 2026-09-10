@@ -55,7 +55,7 @@ export default function SignupPage() {
                           bg-accent-400/10 border border-accent-400/30 mb-4 shadow-glow">
             <ShieldCheck className="w-7 h-7 text-accent-400" />
           </div>
-          <h1 className="text-2xl font-bold text-slate-100">Rakshak Live</h1>
+          <h1 className="text-2xl font-bold text-slate-100">Eye Live</h1>
           <p className="text-sm text-slate-500 mt-1">Create your SOC account</p>
         </div>
 
@@ -150,7 +150,7 @@ export default function SignupPage() {
         </div>
 
         <p className="text-center text-[10px] text-slate-700 mt-6">
-          Rakshak Live · All detection runs locally on your machine
+          Eye Live · All detection runs locally on your machine
         </p>
       </div>
     </div>

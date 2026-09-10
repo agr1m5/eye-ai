@@ -1,7 +1,7 @@
-# 🛡️ Rakshak 2.0 — AI-Augmented Autonomous Security Operations Center (SOC)
+# 🛡️ Eye — AI-Augmented Autonomous Security Operations Center (SOC)
 
 <p align="center">
-  <img src="client/public/vite.svg" width="80" height="80" alt="Rakshak Logo" />
+  <img src="client/public/vite.svg" width="80" height="80" alt="Eye Logo" />
 </p>
 
 <p align="center">
@@ -22,9 +22,9 @@
 
 ## 📖 Overview
 
-**Rakshak 2.0** is an enterprise-grade, real-time Security Operations Center (SOC) platform designed to defend infrastructure and endpoints against emerging threats. It combines lightweight, edge-native telemetry collectors with backend correlation engines, interactive threat visualizers, and a local or cloud-powered **AI SOC Analyst Copilot**.
+**Eye** is an enterprise-grade, real-time Security Operations Center (SOC) platform designed to defend infrastructure and endpoints against emerging threats. It combines lightweight, edge-native telemetry collectors with backend correlation engines, interactive threat visualizers, and a local or cloud-powered **AI SOC Analyst Copilot**.
 
-Whether monitoring a standalone workstation or a fleet of Linux/macOS servers, Rakshak provides zero-overhead log processing, instant alert translation, automated incident grouping, and compliance reporting.
+Whether monitoring a standalone workstation or a fleet of Linux/macOS servers, Eye provides zero-overhead log processing, instant alert translation, automated incident grouping, and compliance reporting.
 
 ---
 
@@ -48,12 +48,12 @@ Whether monitoring a standalone workstation or a fleet of Linux/macOS servers, R
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Rakshak Web SOC Client                                │
+│                       Eye Web SOC Client                                │
 │       React 18 • Vite • Tailwind CSS • Lucide • Chart.js • Leaflet          │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │ HTTP REST / WebSocket (Port 5180 ➔ 5050)
 ┌──────────────────────────────────────▼──────────────────────────────────────┐
-│                       Rakshak SOC Server Engine                             │
+│                       Eye SOC Server Engine                             │
 │       Node.js • Express • Socket.IO • Mongoose • PDFKit • Security Rules    │
 ├──────────────────────────────┬───────────────────────────────┬──────────────┤
 │                              │                               │              │
@@ -64,7 +64,7 @@ Whether monitoring a standalone workstation or a fleet of Linux/macOS servers, R
 └──────────────────────────────▲───────────────────────────────┴──────────────┘
                                │ Authenticated Agent Protocol (HMAC Token)
 ┌──────────────────────────────┴──────────────────────────────────────────────┐
-│                    Rakshak Autonomous Endpoint Agent                        │
+│                    Eye Autonomous Endpoint Agent                        │
 │  • Linux: journalctl / auth.log • ss socket audit • ps process tree         │
 │  • macOS: Unified Log stream • lsof socket audit • POSIX process snapshot   │
 │  • Edge Classifiers: SQLi, XSS, Path Traversal, Brute-Force, Honeytokens   │
@@ -136,7 +136,7 @@ Access the dashboard at **[http://localhost:5180](http://localhost:5180)**.
 
 ## 🤖 Local AI Copilot Setup (Ollama)
 
-Rakshak 2.0 includes native support for running **100% private, local AI models** via Ollama:
+Eye includes native support for running **100% private, local AI models** via Ollama:
 
 1. Install [Ollama](https://ollama.com):
    ```bash
@@ -165,14 +165,14 @@ Rakshak 2.0 includes native support for running **100% private, local AI models*
 
 ## 📡 Agent Pairing Flow
 
-1. Open the Rakshak Dashboard at [http://localhost:5180](http://localhost:5180).
+1. Open the Eye Dashboard at [http://localhost:5180](http://localhost:5180).
 2. Navigate to **Agent Pairing** in the navigation sidebar.
 3. Click **Pair this device** to generate a cryptographically signed registration token.
 4. Copy the generated token into `agent/.env`:
    ```env
    AGENT_TOKEN=your_generated_token_here
    ```
-5. Start or restart the agent (`npm run agent` or `sudo systemctl restart rakshak-agent`).
+5. Start or restart the agent (`npm run agent` or `sudo systemctl restart eye-agent`).
 
 ---
 
@@ -206,8 +206,8 @@ Rakshak 2.0 includes native support for running **100% private, local AI models*
 ## 🛡️ Default Testing Credentials
 
 For local testing, pre-seeded administrator access:
-- **Email**: `testsoc@rakshak.local`
-- **Password**: `Rakshak@123`
+- **Email**: `testsoc@eye.local`
+- **Password**: `Eye@123`
 
 ---
 

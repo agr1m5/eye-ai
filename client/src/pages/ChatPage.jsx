@@ -168,7 +168,7 @@ export default function ChatPage() {
                   <Bot className="w-7 h-7 text-accent-400" />
                 </div>
                 <div>
-                  <h3 className="text-sm font-bold text-slate-100">Rakshak AI Analyst</h3>
+                  <h3 className="text-sm font-bold text-slate-100">Eye AI Analyst</h3>
                   <p className="text-xs text-slate-500 max-w-sm mt-1">
                     Ask threat intelligence questions, investigate MITRE techniques, or request remediation playbooks.
                   </p>

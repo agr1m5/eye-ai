@@ -1,5 +1,5 @@
 /**
- * Threat Model — Rakshak Live SOC
+ * Threat Model — Eye Live SOC
  *
  * Represents a single security finding emitted by the local agent
  * or extracted from a manually imported log file.

@@ -1,5 +1,5 @@
 /**
- * DefenseAction Model — Rakshak Live SOAR & Active Defense
+ * DefenseAction Model — Eye Live SOAR & Active Defense
  *
  * Tracks all executed containment actions: process termination,
  * firewall IP blocks, host isolation, and file quarantine.

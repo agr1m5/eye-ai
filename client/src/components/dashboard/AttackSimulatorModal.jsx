@@ -70,7 +70,7 @@ const DRILL_SCENARIOS = [
     isp: 'Hetzner Online GmbH',
     lat: 50.1109,
     lon: 8.6821,
-    process: 'cat ~/.rakshak/canary_aws_keys.env',
+    process: 'cat ~/.eye/canary_aws_keys.env',
     pid: 6140,
     description: 'Host honeypot tripwire accessed by unknown script attempting credential theft.',
     icon: Zap,

@@ -1,5 +1,5 @@
 {
-  "name": "rakshak-live",
+  "name": "eye-live",
   "private": true,
   "workspaces": [
     "client",

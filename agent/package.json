@@ -1,7 +1,7 @@
 {
-  "name": "rakshak-agent",
+  "name": "eye-agent",
   "version": "1.0.0",
-  "description": "Rakshak Live local agent — collects and locally detects threats from system logs, processes, and network connections on this Mac",
+  "description": "Eye Live local agent — collects and locally detects threats from system logs, processes, and network connections on this Mac",
   "main": "src/index.js",
   "type": "module",
   "scripts": {

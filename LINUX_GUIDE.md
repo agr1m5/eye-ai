@@ -1,6 +1,6 @@
-# 🛡️ Rakshak 2.0 — Linux Deployment & Operation Guide
+# 🛡️ Eye — Linux Deployment & Operation Guide
 
-Rakshak 2.0 provides enterprise-grade SOC threat detection, investigation, live telemetry streaming, and automated correlation. It is fully cross-platform with first-class support for **Linux** (Ubuntu, Debian, Fedora, RHEL, CentOS, Arch, openSUSE).
+Eye provides enterprise-grade SOC threat detection, investigation, live telemetry streaming, and automated correlation. It is fully cross-platform with first-class support for **Linux** (Ubuntu, Debian, Fedora, RHEL, CentOS, Arch, openSUSE).
 
 ---
 
@@ -14,8 +14,8 @@ Runs the entire stack (React Client, Express Backend, and MongoDB) in isolated, 
 ### Launch
 ```bash
 # Clone the repository
-git clone https://github.com/agr1m5/log-sage.git Rakshak2.0
-cd Rakshak2.0
+git clone https://github.com/agr1m5/log-sage.git Eye2.0
+cd Eye2.0
 
 # Start all containers in the background
 docker compose up -d
@@ -63,7 +63,7 @@ Run natively on your Linux distribution using Node.js.
    sudo systemctl enable mongod
 
    # Or run MongoDB in a single Docker container:
-   docker run -d -p 27017:27017 --name rakshak-mongo mongo:7
+   docker run -d -p 27017:27017 --name eye-mongo mongo:7
    ```
 
 ### Quick Start with `start-linux.sh`
@@ -81,7 +81,7 @@ This script will automatically:
 
 ## 📡 Option 3: Running the Linux Telemetry Agent
 
-The Rakshak Telemetry Agent monitors Linux system events, network connections, and processes in real-time.
+The Eye Telemetry Agent monitors Linux system events, network connections, and processes in real-time.
 
 ### How it monitors Linux:
 - **System Logs:** Automatically hooks into `journalctl -f -o json` (systemd journal). Falls back to `/var/log/auth.log` or `/var/log/secure` for SSH logins, `sudo` elevation, and brute-force attempts.
@@ -113,19 +113,19 @@ For 24/7 background telemetry monitoring:
 ```bash
 sudo ./start-linux.sh --install-service
 ```
-This creates and activates `/etc/systemd/system/rakshak-agent.service`.
+This creates and activates `/etc/systemd/system/eye-agent.service`.
 
 #### Managing the systemd service:
 ```bash
 # Check service status
-sudo systemctl status rakshak-agent
+sudo systemctl status eye-agent
 
 # View real-time agent telemetry stream
-sudo journalctl -u rakshak-agent -f
+sudo journalctl -u eye-agent -f
 
 # Restart or stop the agent
-sudo systemctl restart rakshak-agent
-sudo systemctl stop rakshak-agent
+sudo systemctl restart eye-agent
+sudo systemctl stop eye-agent
 ```
 
 ---

@@ -49,7 +49,7 @@ app.use('/api', apiLimiter);
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    service: 'Rakshak Live SOC Backend',
+    service: 'Eye Live SOC Backend',
     timestamp: new Date().toISOString(),
     env: config.env,
   });

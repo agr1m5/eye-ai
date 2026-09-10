@@ -1,5 +1,5 @@
 /**
- * Socket.IO Server Configuration — Rakshak Live SOC
+ * Socket.IO Server Configuration — Eye Live SOC
  *
  * Namespaces:
  *   /        — Browser clients authenticated via JWT

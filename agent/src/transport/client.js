@@ -30,7 +30,7 @@ export class AgentTransport {
 
     this.socket.on("connect", () => {
       this.connected = true;
-      this.onLog(`Connected to Rakshak SOC at ${agentNamespaceUrl}`);
+      this.onLog(`Connected to Eye SOC at ${agentNamespaceUrl}`);
       this._flushBuffer();
       this._flushActivities();
     });

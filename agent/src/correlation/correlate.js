@@ -14,7 +14,7 @@ function worseSeverity(a, b) {
 // This is intentionally simple and explainable (entity + time window,
 // not a black-box model) — every correlation traces back to "these
 // findings shared this IP within this time window," which matters for
-// trust in a security tool. See rakshak-live-architecture.md Section 6.
+// trust in a security tool. See eye-live-architecture.md Section 6.
 export class CorrelationEngine {
   constructor({ windowMs = config.correlationWindowMinutes * 60_000 } = {}) {
     this.windowMs = windowMs;

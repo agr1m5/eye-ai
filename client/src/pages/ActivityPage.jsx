@@ -586,7 +586,7 @@ export default function ActivityPage() {
                     What is this activity doing?
                   </div>
                   <p className="text-xs text-slate-300 leading-relaxed">
-                    {loadingSuggestions ? 'Consulting Rakshak SOC assistant...' : suggestions?.explanation || 'Background operating system task.'}
+                    {loadingSuggestions ? 'Consulting Eye SOC assistant...' : suggestions?.explanation || 'Background operating system task.'}
                   </p>
                 </div>
 
