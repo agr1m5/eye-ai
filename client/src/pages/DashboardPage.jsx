@@ -11,7 +11,6 @@ import PageWrapper from '@/components/layout/PageWrapper';
 import LiveEventFeed   from '@/components/dashboard/LiveEventFeed';
 import SeverityChart   from '@/components/dashboard/SeverityChart';
 import EventRateChart  from '@/components/dashboard/EventRateChart';
-import ThreatWorldMap  from '@/components/dashboard/ThreatWorldMap';
 import AttackChainGraph from '@/components/dashboard/AttackChainGraph';
 import AttackSimulatorModal from '@/components/dashboard/AttackSimulatorModal';
 import { useLiveStats } from '@/hooks/useLiveStats';
@@ -244,10 +243,6 @@ export default function DashboardPage() {
         <EventRateChart />
       </div>
 
-      {/* ── Live Global Threat Origin Map ───────────────────────── */}
-      <div className="mb-4">
-        <ThreatWorldMap />
-      </div>
 
       {/* ── Interactive Kill-Chain Attack Graph & SOAR Panel ─────── */}
       <div className="mb-4">
