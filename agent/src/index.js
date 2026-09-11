@@ -1,5 +1,5 @@
 import { config, assertConfigured } from "./config.js";
-import { ensureDevicePermissionGranted } from "./consent.js";
+import { ensureDevicePermissionGranted, watchConsent } from "./consent.js";
 import { startSystemLogCollector } from "./collectors/systemLogCollector.js";
 import { startProcessCollector } from "./collectors/processCollector.js";
 import { startNetworkCollector } from "./collectors/networkCollector.js";
@@ -90,16 +90,39 @@ async function main() {
 
   log(`Detected platform: ${process.platform} (${process.arch})`);
   log("Starting collectors: system logs, processes, network, honeytoken canaries");
-  const stopLog = startSystemLogCollector(handleEvent, handleError);
-  const stopProcess = startProcessCollector(handleEvent, handleError);
-  const stopNetwork = startNetworkCollector(handleEvent, handleError);
-  const stopCanary = startHoneytokenCollector(handleEvent, handleError);
 
-  const flushInterval = setInterval(() => transport.flush(), config.batchIntervalMs);
+  // Mutable references so watchConsent can stop & restart them
+  let stopLog     = startSystemLogCollector(handleEvent, handleError);
+  let stopProcess = startProcessCollector(handleEvent, handleError);
+  let stopNetwork = startNetworkCollector(handleEvent, handleError);
+  let stopCanary  = startHoneytokenCollector(handleEvent, handleError);
+  let flushInterval = setInterval(() => transport.flush(), config.batchIntervalMs);
+
+  // Watch consent file every 30s — stop or restart collectors live
+  const stopConsentWatch = watchConsent({
+    onRevoke: () => {
+      log('Consent revoked — pausing all collectors and telemetry flush.');
+      clearInterval(flushInterval);
+      flushInterval = null;
+      stopLog();     stopLog     = () => {};
+      stopProcess(); stopProcess = () => {};
+      stopNetwork(); stopNetwork = () => {};
+      stopCanary();  stopCanary  = () => {};
+    },
+    onGrant: () => {
+      log('Consent restored — restarting all collectors.');
+      stopLog     = startSystemLogCollector(handleEvent, handleError);
+      stopProcess = startProcessCollector(handleEvent, handleError);
+      stopNetwork = startNetworkCollector(handleEvent, handleError);
+      stopCanary  = startHoneytokenCollector(handleEvent, handleError);
+      flushInterval = setInterval(() => transport.flush(), config.batchIntervalMs);
+    },
+  });
 
   function shutdown() {
     log("Shutting down...");
-    clearInterval(flushInterval);
+    stopConsentWatch();
+    if (flushInterval) clearInterval(flushInterval);
     stopLog();
     stopProcess();
     stopNetwork();

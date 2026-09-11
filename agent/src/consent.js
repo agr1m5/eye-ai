@@ -9,8 +9,10 @@ import path from 'path';
 import os from 'os';
 import readline from 'readline';
 
-const CONSENT_DIR = path.join(os.homedir(), '.eye');
-const CONSENT_FILE = path.join(CONSENT_DIR, 'device_consent.json');
+const CONSENT_DIR  = path.join(os.homedir(), '.eye');
+const CONSENT_FILE = path.join(CONSENT_DIR,  'device_consent.json');
+
+const WATCH_INTERVAL_MS = 30_000; // re-check consent every 30 seconds
 
 /**
  * Checks whether device access consent has already been granted.
@@ -135,4 +137,44 @@ if (process.argv.includes('--grant')) {
   recordConsent(true);
   console.log('✓ Device access permission recorded successfully.');
   process.exit(0);
+}
+
+/**
+ * Watches ~/.eye/device_consent.json for live consent changes while the agent runs.
+ *
+ * Called AFTER startup with the agent already running. Polls every 30s.
+ * - If consent is revoked  → calls onRevoke() immediately to stop collectors.
+ * - If consent is restored → calls onGrant() to resume collectors.
+ *
+ * Returns a stop function to cancel the watcher.
+ */
+export function watchConsent({ onRevoke, onGrant } = {}) {
+  let lastStatus = hasConsent() ? 'granted' : 'denied';
+
+  const timer = setInterval(() => {
+    try {
+      let currentStatus = 'denied';
+      if (fs.existsSync(CONSENT_FILE)) {
+        const data = JSON.parse(fs.readFileSync(CONSENT_FILE, 'utf8'));
+        currentStatus = data?.status === 'granted' ? 'granted' : 'denied';
+      }
+
+      if (currentStatus !== lastStatus) {
+        console.log(`[Consent] ⚡ Consent changed: ${lastStatus} → ${currentStatus}`);
+        lastStatus = currentStatus;
+
+        if (currentStatus === 'denied') {
+          console.warn('[Consent] 🚫 Device access REVOKED — stopping all collectors immediately.');
+          if (typeof onRevoke === 'function') onRevoke();
+        } else {
+          console.log('[Consent] ✅ Device access GRANTED — resuming collectors.');
+          if (typeof onGrant === 'function') onGrant();
+        }
+      }
+    } catch (err) {
+      console.warn(`[Consent] Warning: Could not read consent file during watch: ${err.message}`);
+    }
+  }, WATCH_INTERVAL_MS);
+
+  return () => clearInterval(timer);
 }
