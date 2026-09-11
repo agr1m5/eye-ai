@@ -12,7 +12,11 @@ import PageWrapper from '@/components/layout/PageWrapper';
 import Modal from '@/components/common/Modal';
 import { useAuth } from '@/context/AuthContext';
 import { authApi } from '@/services/api';
-import { Settings, ShieldCheck, ShieldAlert, Bot, Database, User, Copy, Check, AlertTriangle, Key, GitBranch, Save, Terminal, Network, FileText, CheckCircle2 } from 'lucide-react';
+import {
+  Settings, ShieldCheck, ShieldAlert, ShieldOff, Bot, Database, User,
+  Copy, Check, AlertTriangle, Key, GitBranch, Save, Terminal, Network,
+  FileText, CheckCircle2, XCircle, RefreshCw,
+} from 'lucide-react';
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 
@@ -39,6 +43,11 @@ export default function SettingsPage() {
   const [revealedToken, setRevealedToken] = useState(null);
   const [hasCopied, setHasCopied] = useState(false);
 
+  // Device consent state
+  const [consent, setConsent]             = useState(null); // null = loading
+  const [consentLoading, setConsentLoading] = useState(true);
+  const [consentChanging, setConsentChanging] = useState(false);
+
   // Correlation rule engine settings
   const defaultWindowMs    = user?.preferences?.correlationWindowMs    ?? 15 * 60 * 1000;
   const defaultMinThreshold = user?.preferences?.minFindingsThreshold   ?? 2;
@@ -50,19 +59,55 @@ export default function SettingsPage() {
     try {
       setLoadingStatus(true);
       const { data } = await authApi.agentStatus();
-      if (data.status === 'success') {
-        setPairingStatus(data.data);
-      }
-    } catch (_) {
-      // Non-blocking
-    } finally {
-      setLoadingStatus(false);
-    }
+      if (data.status === 'success') setPairingStatus(data.data);
+    } catch (_) {}
+    finally { setLoadingStatus(false); }
+  }, []);
+
+  const fetchConsent = useCallback(async () => {
+    try {
+      setConsentLoading(true);
+      const { data } = await authApi.getConsent();
+      if (data.status === 'success') setConsent(data.data);
+    } catch (_) {}
+    finally { setConsentLoading(false); }
   }, []);
 
   useEffect(() => {
     fetchAgentStatus();
-  }, [fetchAgentStatus]);
+    fetchConsent();
+  }, [fetchAgentStatus, fetchConsent]);
+
+  const handleGrantConsent = async () => {
+    setConsentChanging(true);
+    try {
+      const { data } = await authApi.setConsent(true);
+      if (data.status === 'success') {
+        setConsent(data.data);
+        toast.success('✅ Device access permission granted — agent collectors active');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to grant permission');
+    } finally { setConsentChanging(false); }
+  };
+
+  const handleRevokeConsent = async () => {
+    if (!window.confirm(
+      'Are you sure you want to REVOKE device access?\n\n' +
+      'The agent will stop collecting telemetry on the next restart. ' +
+      'No new threats or host activity will be reported until permission is re-granted.'
+    )) return;
+    setConsentChanging(true);
+    try {
+      const { data } = await authApi.setConsent(false);
+      if (data.status === 'success') {
+        setConsent(data.data);
+        toast('⚠️ Device access revoked — agent monitoring paused', { icon: '🚫' });
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to revoke permission');
+    } finally { setConsentChanging(false); }
+  };
 
   const handleIssueToken = async () => {
     setIssuing(true);
@@ -239,74 +284,108 @@ export default function SettingsPage() {
         </Section>
 
         {/* Host Device Access & Telemetry Consent */}
-        <Section icon={ShieldCheck} title="Host Device Access & Telemetry Consent">
+        <Section icon={consent?.granted === false ? ShieldOff : ShieldCheck} title="Host Device Access & Telemetry Consent">
           <div className="space-y-4">
-            <div className="flex items-center justify-between p-3 rounded-lg bg-surface-900 border border-surface-700/60 font-mono text-xs">
-              <span className="text-slate-400">Endpoint Authorization Status:</span>
-              <span className="text-emerald-400 flex items-center gap-1.5 font-bold">
-                <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
-                AUTHORIZED BY USER
-              </span>
-            </div>
+
+            {/* Live status banner */}
+            {consentLoading ? (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-surface-800/40 border border-white/5 text-xs text-slate-400 animate-pulse">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin" /> Loading consent status…
+              </div>
+            ) : consent?.granted === false ? (
+              <div className="flex items-start gap-3 p-3 rounded-lg bg-red-950/60 border border-red-700/40 text-xs text-red-300">
+                <XCircle className="w-4 h-4 mt-0.5 shrink-0 text-red-400" />
+                <div>
+                  <p className="font-semibold text-red-200">Device access is REVOKED</p>
+                  <p className="text-red-400 mt-0.5">The agent will not collect telemetry until permission is re-granted. Grant access below to resume monitoring.</p>
+                </div>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between p-3 rounded-lg bg-surface-900 border border-emerald-800/30 font-mono text-xs">
+                <span className="text-slate-400">Endpoint Authorization Status:</span>
+                <span className="text-emerald-400 flex items-center gap-1.5 font-bold">
+                  <CheckCircle2 className="w-3.5 h-3.5" /> AUTHORIZED BY USER
+                </span>
+              </div>
+            )}
+
+            {/* Consent metadata */}
+            {consent?.timestamp && (
+              <div className="text-[11px] text-slate-500 font-mono flex flex-wrap gap-x-4 gap-y-1 px-1">
+                <span>🖥 <span className="text-slate-400">{consent.hostname}</span></span>
+                <span>🕒 <span className="text-slate-400">{format(new Date(consent.timestamp), 'dd MMM yyyy, HH:mm')}</span></span>
+                <span>Status: <span className={consent.granted ? 'text-emerald-400' : 'text-red-400'}>{consent.granted ? 'Granted' : 'Revoked'}</span></span>
+              </div>
+            )}
 
             <p className="text-xs text-slate-400 leading-relaxed">
               The Eye telemetry agent requires explicit user consent before inspecting system activity.
               All data processing occurs strictly on-device with zero external raw data exfiltration:
             </p>
 
+            {/* Scope cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
-              <div className="p-3 rounded-lg bg-surface-800/60 border border-white/5 space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold text-slate-200">
-                  <Terminal className="w-3.5 h-3.5 text-accent-400" />
-                  <span>Process Table Auditing</span>
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  Diffs active processes (<code className="text-accent-400 font-mono">ps</code>) to detect malicious interpreters &amp; reverse shells.
-                </p>
-                <span className="inline-block text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-800">
-                  Permission Granted
-                </span>
-              </div>
-
-              <div className="p-3 rounded-lg bg-surface-800/60 border border-white/5 space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold text-slate-200">
-                  <Network className="w-3.5 h-3.5 text-accent-400" />
-                  <span>Network Socket Auditing</span>
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  Audits open and active TCP/UDP connections (<code className="text-accent-400 font-mono">lsof/ss</code>) for unauthorized C2 beacons.
-                </p>
-                <span className="inline-block text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-800">
-                  Permission Granted
-                </span>
-              </div>
-
-              <div className="p-3 rounded-lg bg-surface-800/60 border border-white/5 space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold text-slate-200">
-                  <FileText className="w-3.5 h-3.5 text-accent-400" />
-                  <span>System Auth Log Stream</span>
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  Ingests authentication events (<code className="text-accent-400 font-mono">auth.log / unified log</code>) to detect brute-force attacks.
-                </p>
-                <span className="inline-block text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-800">
-                  Permission Granted
-                </span>
-              </div>
-
-              <div className="p-3 rounded-lg bg-surface-800/60 border border-white/5 space-y-1">
-                <div className="flex items-center gap-1.5 font-semibold text-slate-200">
-                  <Key className="w-3.5 h-3.5 text-accent-400" />
-                  <span>Canary Decoy Honeytoken</span>
-                </div>
-                <p className="text-[11px] text-slate-400">
-                  Monitors canary trap files in <code className="text-accent-400 font-mono">~/.eye/canary.env</code> for unauthorized tampering.
-                </p>
-                <span className="inline-block text-[10px] font-mono text-emerald-400 bg-emerald-950/60 px-1.5 py-0.2 rounded border border-emerald-800">
-                  Permission Granted
-                </span>
-              </div>
+              {[
+                { icon: Terminal,  label: 'Process Table Auditing',   desc: 'Diffs active processes (ps) to detect malicious interpreters & reverse shells.', scope: 'process_monitoring' },
+                { icon: Network,   label: 'Network Socket Auditing',  desc: 'Audits open TCP/UDP connections (lsof/ss) for unauthorized C2 beacons.',        scope: 'network_socket_audit' },
+                { icon: FileText,  label: 'System Auth Log Stream',   desc: 'Ingests auth events (auth.log / unified log) to detect brute-force attacks.',    scope: 'system_auth_log_stream' },
+                { icon: Key,       label: 'Canary Decoy Honeytoken',  desc: 'Monitors canary trap files in ~/.eye/canary.env for unauthorized tampering.',    scope: 'honeytoken_canary_trap' },
+              ].map(({ icon: Icon, label, desc, scope }) => {
+                const active = consent?.granted && consent?.scopes?.includes(scope);
+                return (
+                  <div key={scope} className={`p-3 rounded-lg border space-y-1 transition-all ${
+                    active
+                      ? 'bg-surface-800/60 border-white/5'
+                      : 'bg-red-950/20 border-red-900/30 opacity-60'
+                  }`}>
+                    <div className="flex items-center gap-1.5 font-semibold text-slate-200">
+                      <Icon className={`w-3.5 h-3.5 ${active ? 'text-accent-400' : 'text-red-400'}`} />
+                      <span>{label}</span>
+                    </div>
+                    <p className="text-[11px] text-slate-400">{desc}</p>
+                    <span className={`inline-block text-[10px] font-mono px-1.5 py-0.5 rounded border ${
+                      active
+                        ? 'text-emerald-400 bg-emerald-950/60 border-emerald-800'
+                        : 'text-red-400 bg-red-950/60 border-red-800'
+                    }`}>
+                      {active ? 'Permission Granted' : 'Permission Revoked'}
+                    </span>
+                  </div>
+                );
+              })}
             </div>
+
+            {/* Grant / Revoke action buttons */}
+            <div className="flex flex-wrap gap-2 pt-1">
+              {consent?.granted === false ? (
+                <button
+                  onClick={handleGrantConsent}
+                  disabled={consentChanging}
+                  className="btn-primary text-xs px-4 py-2 flex items-center gap-1.5"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  {consentChanging ? 'Granting…' : 'Grant Device Access'}
+                </button>
+              ) : (
+                <button
+                  onClick={handleRevokeConsent}
+                  disabled={consentChanging || consentLoading}
+                  className="btn-danger text-xs px-4 py-2 flex items-center gap-1.5"
+                >
+                  <ShieldOff className="w-3.5 h-3.5" />
+                  {consentChanging ? 'Revoking…' : 'Revoke Device Access'}
+                </button>
+              )}
+              <button
+                onClick={fetchConsent}
+                disabled={consentLoading}
+                className="btn-ghost text-xs px-3 py-2 flex items-center gap-1.5"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${consentLoading ? 'animate-spin' : ''}`} />
+                Refresh
+              </button>
+            </div>
+
           </div>
         </Section>
 

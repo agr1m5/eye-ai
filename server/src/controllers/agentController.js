@@ -135,3 +135,97 @@ export async function getAgentStatus(req, res) {
     },
   });
 }
+
+/* ── GET /api/agent/consent ──────────────────────────────────── */
+import fs   from 'fs';
+import path from 'path';
+import os   from 'os';
+
+const CONSENT_DIR  = path.join(os.homedir(), '.eye');
+const CONSENT_FILE = path.join(CONSENT_DIR,  'device_consent.json');
+const AGENT_ENV    = path.join(process.cwd(), '..', 'agent', '.env');
+
+function readConsentFile() {
+  try {
+    if (fs.existsSync(CONSENT_FILE)) {
+      return JSON.parse(fs.readFileSync(CONSENT_FILE, 'utf8'));
+    }
+  } catch {}
+  return null;
+}
+
+export async function getConsent(req, res) {
+  try {
+    const data    = readConsentFile();
+    const granted = data?.status === 'granted';
+    return res.status(200).json({
+      status: 'success',
+      data: {
+        granted,
+        timestamp: data?.timestamp || null,
+        scopes:    data?.scopes    || [],
+        hostname:  data?.hostname  || null,
+      },
+    });
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+}
+
+/* ── PATCH /api/agent/consent ────────────────────────────────── */
+export async function setConsent(req, res) {
+  try {
+    const { granted } = req.body;
+    if (typeof granted !== 'boolean') {
+      return res.status(400).json({ status: 'error', message: '`granted` must be a boolean.' });
+    }
+
+    // 1. Write ~/.eye/device_consent.json
+    if (!fs.existsSync(CONSENT_DIR)) fs.mkdirSync(CONSENT_DIR, { recursive: true });
+    const payload = {
+      status:    granted ? 'granted' : 'denied',
+      timestamp: new Date().toISOString(),
+      hostname:  os.hostname(),
+      platform:  os.platform(),
+      arch:      os.arch(),
+      user:      os.userInfo().username,
+      scopes: ['process_monitoring', 'network_socket_audit', 'system_auth_log_stream', 'honeytoken_canary_trap'],
+    };
+    fs.writeFileSync(CONSENT_FILE, JSON.stringify(payload, null, 2), { encoding: 'utf8', mode: 0o600 });
+
+    // 2. Update DEVICE_ACCESS_GRANTED in agent/.env (if file exists)
+    try {
+      if (fs.existsSync(AGENT_ENV)) {
+        let envContent = fs.readFileSync(AGENT_ENV, 'utf8');
+        if (envContent.includes('DEVICE_ACCESS_GRANTED=')) {
+          envContent = envContent.replace(
+            /DEVICE_ACCESS_GRANTED=.*/,
+            `DEVICE_ACCESS_GRANTED=${granted}`
+          );
+        } else {
+          envContent += `\nDEVICE_ACCESS_GRANTED=${granted}\n`;
+        }
+        fs.writeFileSync(AGENT_ENV, envContent, 'utf8');
+      }
+    } catch (envErr) {
+      console.warn('[Consent] Could not update agent/.env:', envErr.message);
+    }
+
+    createAuditEntry({
+      userId:     req.user._id,
+      action:     granted ? 'consent.granted' : 'consent.revoked',
+      targetType: 'System',
+      targetId:   req.user._id,
+      metadata:   { hostname: os.hostname() },
+      ip:         req.ip,
+    });
+
+    return res.status(200).json({
+      status:  'success',
+      message: granted ? 'Device access permission granted.' : 'Device access permission revoked.',
+      data:    payload,
+    });
+  } catch (err) {
+    return res.status(500).json({ status: 'error', message: err.message });
+  }
+}
