@@ -8,9 +8,10 @@
  *   DELETE /api/threats/:id       — dismiss (soft: set status='dismissed')
  */
 import Threat from '../models/Threat.js';
+import Incident from '../models/Incident.js';
 import { createAuditEntry } from '../services/auditService.js';
 import { getIO } from '../config/socket.js';
-import { correlateFinding } from '../services/correlationService.js';
+import { correlateFinding, inferMitreTechniques } from '../services/correlationService.js';
 import { syncIncidentFromThreats } from '../services/incidentSyncService.js';
 
 const PAGE_SIZE = 25;
@@ -451,16 +452,54 @@ export async function simulateThreat(req, res, next) {
       ip: req.ip,
     });
 
+    let incident = null;
     try {
       const io = getIO();
       const clientRoom = `user:${req.user._id}`;
       io.of('/').to(clientRoom).emit('finding:new', threat.toObject());
-      await correlateFinding(threat, req.user._id, io.of('/'), clientRoom);
+
+      const correlationRes = await correlateFinding(threat, req.user._id, io.of('/'), clientRoom);
+      incident = correlationRes?.incident || null;
+
+      if (!incident) {
+        // Form a dedicated simulation incident cluster if not matched to existing window
+        incident = new Incident({
+          userId: req.user._id,
+          title: `Red Team Simulation: ${String(type).replace(/_/g, ' ').toUpperCase()}`,
+          severity: threat.severity || 'critical',
+          status: 'open',
+          threatIds: [threat._id],
+          summary: `Red Team drill simulated on host. Attack Vector: ${type} targeting PID ${pid} from ${ip}.`,
+          mitreTechniques: inferMitreTechniques(type, description),
+          notes: `[Simulation Detonated ${new Date().toISOString()}] Red Team attack launched against host. Attacker IP: ${ip}, Process: ${process} (PID ${pid}). Awaiting SOAR containment response.`,
+        });
+        await incident.save();
+        threat.incidentId = incident._id;
+        await threat.save();
+
+        io.of('/').to(clientRoom).emit('incident:new', incident.toObject());
+      } else {
+        threat.incidentId = incident._id;
+        await threat.save();
+      }
+
+      // Broadcast explicit simulation:started event so Kill-Chain & Dashboard react in real time
+      io.of('/').to(clientRoom).emit('simulation:started', {
+        threat: threat.toObject(),
+        incident: incident ? (incident.toObject ? incident.toObject() : incident) : null,
+        scenario: { type, severity, ip, process, pid, description },
+      });
     } catch (socketErr) {
       console.warn('[simulateThreat] Socket broadcast warning:', socketErr.message);
     }
 
-    return res.status(201).json({ status: 'success', data: threat });
+    return res.status(201).json({
+      status: 'success',
+      data: {
+        threat,
+        incident,
+      },
+    });
   } catch (err) {
     next(err);
   }

@@ -139,9 +139,13 @@ export class AgentTransport {
   }
 
   enqueueActivity(activity) {
-    this.activityBuffer.push(activity);
-    if (this.activityBuffer.length > 2000) {
-      this.activityBuffer.shift();
+    if (this.connected && this.socket) {
+      this.socket.emit("activity:single", activity);
+    } else {
+      this.activityBuffer.push(activity);
+      if (this.activityBuffer.length > 500) {
+        this.activityBuffer.shift();
+      }
     }
   }
 
@@ -162,16 +166,12 @@ export class AgentTransport {
   }
 
   _flushActivities() {
-    if (!this.connected || this.activityBuffer.length === 0) return;
+    if (!this.connected || this.activityBuffer.length === 0 || !this.socket) return;
 
-    const toSend = this.activityBuffer.splice(0, 100);
-
-    this.socket.emit("activities:batch", { activities: toSend }, (ack) => {
-      if (!ack?.success) {
-        // If failed, re-queue at head
-        this.activityBuffer = [...toSend, ...this.activityBuffer].slice(0, 2000);
-      }
-    });
+    const toSend = this.activityBuffer.splice(0, 10);
+    for (const act of toSend) {
+      this.socket.emit("activity:single", act);
+    }
   }
 
   flush() {

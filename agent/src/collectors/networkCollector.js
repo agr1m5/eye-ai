@@ -18,6 +18,19 @@ function parseLsofOutput(output) {
     if (!match) continue;
 
     const [, command, pid, user, localIp, localPort, remoteIp, remotePort, state] = match;
+
+    // Strict non-root filtering
+    if (user === 'root' || user.startsWith('_')) continue;
+
+    // Filter out internal infrastructure connections
+    if (
+      remotePort === '5050' || remotePort === '5180' ||
+      remotePort === '27017' || remotePort === '11434' ||
+      command === 'lsof' || command === 'ps'
+    ) {
+      continue;
+    }
+
     const key = `${pid}:${localIp}:${localPort}->${remoteIp}:${remotePort}`;
     connections.set(key, { command, pid, user, localIp, localPort, remoteIp, remotePort, state });
   }
@@ -118,11 +131,21 @@ async function takeSnapshot() {
 export function startNetworkCollector(onEvent, onError) {
   let previousSnapshot = new Map();
   let stopped = false;
+  let isInitialized = false;
 
   async function poll() {
     if (stopped) return;
     try {
       const snapshot = await takeSnapshot();
+
+      // Initial baseline poll — save state without dumping pre-existing sockets
+      if (!isInitialized) {
+        previousSnapshot = snapshot;
+        isInitialized = true;
+        if (!stopped) setTimeout(poll, config.networkPollIntervalMs);
+        return;
+      }
+
       const changes = diffSnapshots(previousSnapshot, snapshot);
       previousSnapshot = snapshot;
 

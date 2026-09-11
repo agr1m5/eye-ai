@@ -8,7 +8,7 @@
  */
 import { useState } from 'react';
 import { formatDistanceToNow, format } from 'date-fns';
-import { GitBranch, Shield, ChevronDown, ChevronUp, AlertCircle, Clock, CheckCircle, Trash2 } from 'lucide-react';
+import { GitBranch, Shield, ChevronDown, ChevronUp, AlertCircle, Clock, CheckCircle, CheckCircle2, ShieldCheck, Trash2 } from 'lucide-react';
 import SeverityBadge from '@/components/common/SeverityBadge';
 import { formatTechnique } from '@/utils/threatFormatter';
 
@@ -37,6 +37,13 @@ export default function IncidentCard({ incident, onSelect, onStatusChange, onDel
 
   const currentStatusObj = STATUS_OPTIONS.find((s) => s.value === incident.status) || STATUS_OPTIONS[0];
 
+  const isTakenDown = incident.status === 'resolved' && (
+    incident.notes?.toLowerCase().includes('taken down') ||
+    incident.summary?.toLowerCase().includes('taken down') ||
+    incident.summary?.toLowerCase().includes('soar') ||
+    incident.notes?.toLowerCase().includes('countermeasure')
+  );
+
   const timeAgo = incident.createdAt
     ? formatDistanceToNow(new Date(incident.createdAt), { addSuffix: true })
     : '—';
@@ -54,9 +61,15 @@ export default function IncidentCard({ incident, onSelect, onStatusChange, onDel
             <GitBranch className="w-5 h-5" />
           </div>
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <SeverityBadge severity={incident.severity} />
               <span className="text-[11px] font-mono text-slate-500">#{incident._id.slice(-6)}</span>
+              {isTakenDown && (
+                <span className="flex items-center gap-1 text-[10px] font-mono font-bold text-emerald-300 bg-emerald-950/90 px-2 py-0.5 rounded-full border border-emerald-500/60 shadow-sm shadow-emerald-950/60">
+                  <ShieldCheck className="w-3 h-3 text-emerald-400" />
+                  ATTACK TAKEN DOWN
+                </span>
+              )}
             </div>
             <h3 className="text-sm font-semibold text-slate-100 group-hover:text-accent-300 transition-colors mt-1">
               {incident.title}
@@ -126,9 +139,13 @@ export default function IncidentCard({ incident, onSelect, onStatusChange, onDel
             Auto-Synced
           </span>
         </div>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 font-mono text-[11px]">
           <Clock className="w-3.5 h-3.5 text-slate-600" />
-          <span>{timeAgo}</span>
+          <span className={isTakenDown ? 'text-emerald-400 font-semibold' : 'text-slate-500'}>
+            {isTakenDown && incident.resolvedAt
+              ? `Taken down ${formatDistanceToNow(new Date(incident.resolvedAt), { addSuffix: true })}`
+              : timeAgo}
+          </span>
         </div>
       </div>
     </div>

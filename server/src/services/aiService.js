@@ -291,11 +291,30 @@ export async function generateActivitySuggestions({ activity }) {
 
   // 1. If already flagged as threat
   if (isThreat || (severity && severity !== 'none' && severity !== 'low')) {
+    const sevUpper = (severity || 'high').toUpperCase();
     return {
       safetyVerdict: 'threat',
-      badgeText: `Security Threat (${(severity || 'high').toUpperCase()})`,
+      badgeText: `Security Threat (${sevUpper})`,
       summary: `This activity triggered a security alert for "${activity.threatType || 'suspicious activity'}".`,
       explanation: `Eye detected an anomalous pattern: ${description}. This may indicate unauthorized execution, remote injection, or privilege escalation.`,
+      attackImpact: {
+        severity: sevUpper,
+        blastRadius: 'Host Subsystem & User Workspace',
+        containmentUrgency: 'Immediate Isolation Required',
+        mitreTactic: 'Execution (TA0002) / Defense Evasion (TA0005)',
+        cia: {
+          confidentiality: { level: 'High', description: 'Severe risk of memory scraping, token exfiltration, or unauthorized file access.' },
+          integrity: { level: 'High', description: 'Potential for arbitrary binary modification, unauthorized script execution, or persistent backdoors.' },
+          availability: { level: 'Medium', description: 'Risk of host disruption, killed security daemons, or resource starvation.' },
+        },
+        potentialConsequences: [
+          'Arbitrary Code Execution (RCE) bypassing standard endpoint security policies.',
+          'Credential scraping and session token hijacking from memory or environment files.',
+          'Establishment of persistent reverse shell or unauthorized background worker.',
+          'Lateral movement toward connected internal subnet and peer devices.',
+        ],
+        businessRisk: 'Critical risk of data compromise, compliance breach (SOC2/GDPR), and host downtime.',
+      },
       recommendations: [
         'Isolate the host or suspend the active process immediately.',
         pid ? `Inspect child/parent processes associated with PID ${pid}.` : 'Investigate the initiating executable.',
@@ -321,6 +340,22 @@ export async function generateActivitySuggestions({ activity }) {
         badgeText: 'Internal Loopback (Safe)',
         summary: `Local inter-process communication on loopback address (${ip || '127.0.0.1'}).`,
         explanation: `Application "${metadata.command || 'process'}" is communicating with a local service on your machine. Localhost socket traffic is standard for browsers, development servers, and desktop software.`,
+        attackImpact: {
+          severity: 'NEGLIGIBLE',
+          blastRadius: 'Loopback Interface (127.0.0.1)',
+          containmentUrgency: 'None / Normal Operation',
+          mitreTactic: 'Inter-Process Communication (IPC)',
+          cia: {
+            confidentiality: { level: 'None', description: 'Traffic does not traverse external network wires; confined to local kernel socket queues.' },
+            integrity: { level: 'None', description: 'Standard message delivery between authorized local processes.' },
+            availability: { level: 'None', description: 'Negligible socket overhead on host stack.' },
+          },
+          potentialConsequences: [
+            'No external attack surface exposed.',
+            'Worst-case risk limited to unauthenticated local service querying if an SSRF bug exists in another process.',
+          ],
+          businessRisk: 'Zero business impact. Essential for standard developer and OS workflows.',
+        },
         recommendations: [
           'No defensive action required; this is standard internal system operation.',
           pid ? `Verify application identity: run 'ps -fp ${pid}' to confirm binary origin.` : 'Verify application path if unfamiliar.',
@@ -338,6 +373,22 @@ export async function generateActivitySuggestions({ activity }) {
         badgeText: 'Local Network (LAN)',
         summary: `Connection to local private subnet device (${ip}).`,
         explanation: `Application is interacting with a device inside your local area network (router, printer, or local subnet peer).`,
+        attackImpact: {
+          severity: 'LOW',
+          blastRadius: 'Local Area Subnet (LAN)',
+          containmentUrgency: 'Periodic Review',
+          mitreTactic: 'Internal Network Discovery / Traffic',
+          cia: {
+            confidentiality: { level: 'Low', description: 'Confined to internal subnet; data is not routed over the public internet.' },
+            integrity: { level: 'Low', description: 'Relies on local network perimeter security; potential risk if rogue devices are on Wi-Fi.' },
+            availability: { level: 'None', description: 'Standard private network utilization.' },
+          },
+          potentialConsequences: [
+            'Lateral discovery of shared internal services and network shares.',
+            'Potential MITM vulnerability if internal subnet is untrusted or unencrypted.',
+          ],
+          businessRisk: 'Low operational risk when operating on secure, authenticated corporate or home subnets.',
+        },
         recommendations: [
           'Confirm that the destination IP belongs to an authorized internal subnet resource.',
           'Ensure local network services require password authentication.',
@@ -356,6 +407,31 @@ export async function generateActivitySuggestions({ activity }) {
       badgeText: isStandardWeb ? 'Outbound HTTPS (Standard)' : 'External Connection (Inspect)',
       summary: `Application "${metadata.command || 'process'}" connected to remote internet IP ${ip}:${metadata.remotePort || '443'}.`,
       explanation: `Outbound internet socket established over ${isStandardWeb ? 'secure TLS/HTTPS' : `port ${metadata.remotePort}`}. Typical for cloud APIs, web browsing, package downloads, and background telemetry.`,
+      attackImpact: {
+        severity: isStandardWeb ? 'LOW' : 'MEDIUM',
+        blastRadius: isStandardWeb ? 'Encrypted Web Gateway' : 'Untrusted Remote Internet Port',
+        containmentUrgency: isStandardWeb ? 'Standard Egress' : 'Verify Destination Domain / IP',
+        mitreTactic: 'Command & Control (TA0011) / Exfiltration (TA0010)',
+        cia: {
+          confidentiality: {
+            level: isStandardWeb ? 'Low' : 'Medium',
+            description: isStandardWeb ? 'Payload encrypted in-transit with TLS 1.3.' : 'Non-standard port may transmit unencrypted telemetry or credentials.'
+          },
+          integrity: {
+            level: 'Low',
+            description: 'Remote payload must be inspected and validated before execution by the application.'
+          },
+          availability: {
+            level: 'None',
+            description: 'Egress socket consumption within standard OS limits.'
+          },
+        },
+        potentialConsequences: [
+          isStandardWeb ? 'Legitimate cloud API synchronization or software update verification.' : 'Potential data exfiltration to unauthorized remote host or C2 beaconing.',
+          'Covert channel communication if initiating binary is unverified.',
+        ],
+        businessRisk: isStandardWeb ? 'Standard operational SaaS connectivity.' : 'Potential data leakage risk and compliance notification if sensitive records are transmitted.',
+      },
       recommendations: [
         `Verify destination host identity using reverse DNS or WHOIS lookup.`,
         `If this connection was not user-initiated, verify the initiating process binary with 'which ${metadata.command || 'app'}'.`,
@@ -380,6 +456,22 @@ export async function generateActivitySuggestions({ activity }) {
         badgeText: 'Developer Runtime (Safe)',
         summary: `Active development runtime process: ${command.slice(0, 60)}.`,
         explanation: `This process was spawned as part of your Node.js, Python, or local project environment. It is normal development activity.`,
+        attackImpact: {
+          severity: 'LOW',
+          blastRadius: 'Project Workspace & Node Environment',
+          containmentUrgency: 'Dependency Hygiene',
+          mitreTactic: 'Execution: User Execution (T1204)',
+          cia: {
+            confidentiality: { level: 'Low', description: 'Process possesses read access to project files, .env configurations, and source code.' },
+            integrity: { level: 'Low', description: 'Can write artifacts, bundle builds, and edit workspace files.' },
+            availability: { level: 'Low', description: 'Local CPU and RAM consumption during compilation or watch mode.' },
+          },
+          potentialConsequences: [
+            'Supply-chain vulnerability if an untrusted third-party npm package executes malicious install scripts.',
+            'Local dev server binding to 0.0.0.0 exposing internal development routes to LAN.',
+          ],
+          businessRisk: 'Low direct impact; requires code review and periodic dependency audits.',
+        },
         recommendations: [
           'Verify project dependencies in package.json to prevent typosquatting attacks.',
           'Run audits periodically using `npm audit` or `pip check`.',
@@ -397,6 +489,22 @@ export async function generateActivitySuggestions({ activity }) {
         badgeText: 'Web Browser Process (Safe)',
         summary: `Web browser execution: ${command.slice(0, 60)}.`,
         explanation: `Modern browsers use multi-process architectures (rendering tabs, GPU acceleration, and extensions in isolated helper sandboxes).`,
+        attackImpact: {
+          severity: 'LOW',
+          blastRadius: 'Chromium/WebKit Sandbox Isolation',
+          containmentUrgency: 'Keep Browser Updated',
+          mitreTactic: 'User Execution: Malicious Link (T1204.001)',
+          cia: {
+            confidentiality: { level: 'Low', description: 'Tabs run in separate memory spaces; cannot read OS files without sandbox escape.' },
+            integrity: { level: 'None', description: 'Browser renderer cannot modify system files directly.' },
+            availability: { level: 'Low', description: 'High memory utilization across active tabs and hardware GPU acceleration.' },
+          },
+          potentialConsequences: [
+            'Untrusted web content could trigger client-side XSS or phishing within the browser tab.',
+            'Malicious extensions could request excessive DOM permissions.',
+          ],
+          businessRisk: 'Low system risk due to OS-level sandboxing, provided software is patched.',
+        },
         recommendations: [
           'Keep your web browser updated to the latest version to patch zero-day vulnerabilities.',
           'Review installed browser extensions for excessive permission requests.',
@@ -412,6 +520,22 @@ export async function generateActivitySuggestions({ activity }) {
       badgeText: 'Verified Endpoint Process',
       summary: `Standard host process execution: ${command.slice(0, 60)}.`,
       explanation: `Process is running under user "${actor}". System utilities and background daemons run continuously to support OS features and active desktop software.`,
+      attackImpact: {
+        severity: 'LOW',
+        blastRadius: 'Local Process Space (POSIX Sandboxed)',
+        containmentUrgency: 'Continuous Baseline',
+        mitreTactic: 'Discovery: System Information (T1082)',
+        cia: {
+          confidentiality: { level: 'Low', description: 'Subject to standard user access rights; cannot view other user files.' },
+          integrity: { level: 'None', description: 'Cannot alter system-protected /usr or /System roots without administrative escalation.' },
+          availability: { level: 'None', description: 'Controlled process memory usage.' },
+        },
+        potentialConsequences: [
+          'Legitimate OS operation or background helper service.',
+          'If process binary is replaced or hijacked, potential unauthorized background execution.',
+        ],
+        businessRisk: 'Nominal baseline activity. Zero operational interruption.',
+      },
       recommendations: [
         'Confirm process executable originates from standard directories (/usr/bin, /Applications, /usr/local/bin).',
         'Verify running user matches appropriate privilege boundaries.',
@@ -429,6 +553,22 @@ export async function generateActivitySuggestions({ activity }) {
     badgeText: 'System Event (Normal)',
     summary: `Host operating system log event: ${description.slice(0, 60)}.`,
     explanation: `Recorded by host security auditing subsystem. Periodic authentication status checks and daemon health checks are expected.`,
+    attackImpact: {
+      severity: 'NEGLIGIBLE',
+      blastRadius: 'Audit Subsystem / Syslog',
+      containmentUrgency: 'Log Retention',
+      mitreTactic: 'Defense Evasion: Indicator Removal (T1070)',
+      cia: {
+        confidentiality: { level: 'None', description: 'Log contains telemetry metadata only.' },
+        integrity: { level: 'None', description: 'Append-only system security logs.' },
+        availability: { level: 'None', description: 'Minimal log rotation footprint.' },
+      },
+      potentialConsequences: [
+        'Standard auditing records routine system state.',
+        'If adversary modifies log files, potential log tampering or evasion.',
+      ],
+      businessRisk: 'Zero threat. Essential for compliance and forensic audit trails.',
+    },
     recommendations: [
       'Ensure sudo sessions and administrative elevations are monitored.',
       'Check system log integrity regularly.',

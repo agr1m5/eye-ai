@@ -37,6 +37,7 @@ import {
 import { format } from 'date-fns';
 import toast from 'react-hot-toast';
 import IncidentTimeline from '@/components/incidents/IncidentTimeline';
+import { useSocket } from '@/context/SocketContext';
 
 const STATUS_FILTERS = [
   { value: '', label: 'All Incidents' },
@@ -47,6 +48,7 @@ const STATUS_FILTERS = [
 ];
 
 export default function IncidentsPage() {
+  const { subscribe } = useSocket();
   const [incidents, setIncidents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
@@ -91,6 +93,70 @@ export default function IncidentsPage() {
   useEffect(() => {
     fetchIncidents(1, statusFilter);
   }, [statusFilter, fetchIncidents]);
+
+  // Real-time synchronization for new incidents, updates, and attack takedowns
+  useEffect(() => {
+    if (!subscribe) return;
+
+    const unsubNew = subscribe('incident:new', (newInc) => {
+      if (!newInc) return;
+      setIncidents((prev) => [newInc, ...prev.filter((i) => i._id !== newInc._id)]);
+      setPagination((p) => ({ ...p, total: p.total + 1 }));
+      toast(`🚨 New Incident Correlated: ${newInc.title}`, { icon: '⚡' });
+    });
+
+    const unsubUpdated = subscribe('incident:updated', (updatedInc) => {
+      if (!updatedInc) return;
+      setIncidents((prev) => prev.map((i) => (i._id === updatedInc._id ? { ...i, ...updatedInc } : i)));
+      if (activeIncident?._id === updatedInc._id) {
+        setActiveIncident((prev) => ({ ...prev, ...updatedInc }));
+        setIncidentDetail((prev) => (prev ? { ...prev, ...updatedInc } : prev));
+      }
+    });
+
+    const unsubResolved = subscribe('incident:resolved', (resData) => {
+      if (!resData?.incidentId) return;
+      setIncidents((prev) =>
+        prev.map((i) =>
+          i._id === resData.incidentId
+            ? {
+                ...i,
+                status: 'resolved',
+                resolvedAt: resData.resolvedAt || new Date(),
+                notes: resData.incident?.notes || i.notes,
+                summary: resData.incident?.summary || i.summary,
+              }
+            : i
+        )
+      );
+
+      if (activeIncident?._id === resData.incidentId) {
+        setActiveIncident((prev) => ({ ...prev, status: 'resolved' }));
+        setIncidentDetail((prev) =>
+          prev
+            ? {
+                ...prev,
+                status: 'resolved',
+                resolvedAt: resData.resolvedAt || new Date(),
+                notes: resData.incident?.notes || prev.notes,
+                summary: resData.incident?.summary || prev.summary,
+              }
+            : prev
+        );
+      }
+
+      toast.success(
+        `🛡️ Attack Taken Down: Incident #${resData.incidentId.slice(-6)} neutralized and updated in Incidents!`,
+        { icon: '✅', duration: 6000 }
+      );
+    });
+
+    return () => {
+      unsubNew();
+      unsubUpdated();
+      unsubResolved();
+    };
+  }, [subscribe, activeIncident]);
 
   const handleStatusChange = async (id, newStatus) => {
     try {
@@ -307,6 +373,28 @@ export default function IncidentsPage() {
                 </span>
               </div>
             </div>
+
+            {/* Attack Taken Down Notification Banner */}
+            {(incidentDetail.status === 'resolved' || incidentDetail.status === 'closed') && (
+              <div className="p-3.5 rounded-xl bg-emerald-950/50 border border-emerald-500/60 flex items-start gap-3 text-emerald-300 shadow-md shadow-emerald-950/40">
+                <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-mono font-bold text-emerald-300 tracking-wide uppercase">
+                      ATTACK TAKEN DOWN · SOAR COUNTERMEASURE ENFORCED
+                    </span>
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded bg-emerald-900/70 text-emerald-200 border border-emerald-500/40 font-bold">
+                      RESOLVED
+                    </span>
+                  </div>
+                  <p className="text-xs text-emerald-200/90 leading-relaxed font-sans mt-1">
+                    {incidentDetail.notes?.includes('Attack taken down')
+                      ? incidentDetail.notes.split('\n').filter(l => l.includes('Attack taken down')).pop()
+                      : 'Adversary intrusion vector was neutralized and contained by autonomous SOAR response. Malicious processes terminated and constituent threats dismissed.'}
+                  </p>
+                </div>
+              </div>
+            )}
 
             {/* MITRE ATT&CK */}
             {incidentDetail.mitreTechniques?.length > 0 && (

@@ -10,6 +10,7 @@ import { config } from './env.js';
 import { verifyToken } from '../utils/jwt.js';
 import User from '../models/User.js';
 import Threat from '../models/Threat.js';
+import Incident from '../models/Incident.js';
 import HostActivity from '../models/HostActivity.js';
 import DefenseAction from '../models/DefenseAction.js';
 import { correlateFinding, handleAgentIncident } from '../services/correlationService.js';
@@ -241,6 +242,37 @@ export function initSocketServer(httpServer) {
       }
     });
 
+    // Ingest single host & user activity from agent (one-by-one real-time stream)
+    socket.on('activity:single', async (act) => {
+      try {
+        if (!act) return;
+
+        // Skip root user telemetry
+        const actor = act.actor || act.user || 'system';
+        if (actor === 'root' || actor.startsWith('_')) return;
+
+        const doc = await HostActivity.create({
+          userId: socket.userId,
+          source: act.source || 'process',
+          action: act.action || `${act.source || 'process'}.event`,
+          description: act.description || act.message || 'Host activity recorded',
+          actor,
+          entity: act.entity || act.command || act.remoteIp || '',
+          ip: act.ip || act.remoteIp || null,
+          isThreat: Boolean(act.isThreat),
+          severity: act.severity || 'none',
+          threatType: act.threatType || null,
+          metadata: act.metadata || act.raw ? { raw: act.raw, ...act } : act,
+          timestamp: act.timestamp ? new Date(act.timestamp) : new Date(),
+        });
+
+        // Broadcast single activity to user's dashboard in real-time
+        clientNamespace.to(clientRoom).emit('activity:single', doc.toObject());
+      } catch (err) {
+        console.error('[Socket.IO:Agent] Error saving single activity:', err.message);
+      }
+    });
+
     // Ingest batch host & user activities from agent
     socket.on('activities:batch', async (data, ack) => {
       try {
@@ -307,10 +339,29 @@ export function initSocketServer(httpServer) {
     socket.on('agent:contain:receipt', async (receipt) => {
       try {
         if (receipt?.actionId) {
-          await DefenseAction.findByIdAndUpdate(receipt.actionId, {
-            status: receipt.success ? 'active' : 'failed',
-            $set: { 'receipt.agentExecution': receipt },
-          });
+          const action = await DefenseAction.findByIdAndUpdate(
+            receipt.actionId,
+            {
+              status: receipt.success ? 'active' : 'failed',
+              $set: { 'receipt.agentExecution': receipt },
+            },
+            { new: true }
+          );
+
+          if (action?.incidentId && receipt.success) {
+            const inc = await Incident.findById(action.incidentId);
+            if (inc && inc.status !== 'closed') {
+              inc.status = 'resolved';
+              inc.resolvedAt = inc.resolvedAt || new Date();
+              const confirmMsg = `[Host Daemon Verification — ${new Date().toLocaleTimeString()}] Takedown verified on endpoint (${receipt.actionType || action.actionType} on target ${receipt.target || action.target}).`;
+              if (!inc.notes?.includes('Host Daemon Verification')) {
+                inc.notes = inc.notes ? `${inc.notes}\n\n${confirmMsg}` : confirmMsg;
+                await inc.save();
+                clientNamespace.to(clientRoom).emit('incident:updated', inc.toObject());
+                io.of('/').to(clientRoom).emit('incident:updated', inc.toObject());
+              }
+            }
+          }
         }
         clientNamespace.to(clientRoom).emit('defense:action:confirmed', receipt);
         io.of('/').to(clientRoom).emit('defense:action:confirmed', receipt);

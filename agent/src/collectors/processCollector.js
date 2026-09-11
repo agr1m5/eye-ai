@@ -13,7 +13,26 @@ function parsePsOutput(output) {
     const match = line.trim().match(/^(\d+)\s+(\S+)\s+(.+)$/);
     if (!match) continue;
     const [, pid, user, command] = match;
-    processes.set(pid, { pid, user, command: command.trim() });
+
+    // Strict non-root filtering — do not monitor root or system daemon accounts
+    if (user === 'root' || user.startsWith('_')) continue;
+
+    const cmdClean = command.trim();
+    const cmdLower = cmdClean.toLowerCase();
+
+    // Filter out internal telemetry & collector subprocesses
+    if (
+      cmdLower.startsWith('ps ') || cmdLower === 'ps' ||
+      cmdLower.startsWith('lsof ') || cmdLower === 'lsof' ||
+      cmdLower.startsWith('ss ') || cmdLower === 'ss' ||
+      cmdLower.includes('node src/index.js') ||
+      cmdLower.includes('nodemon') ||
+      cmdLower.includes('sh -c ps')
+    ) {
+      continue;
+    }
+
+    processes.set(pid, { pid, user, command: cmdClean });
   }
 
   return processes;
@@ -57,11 +76,21 @@ function takeSnapshot() {
 export function startProcessCollector(onEvent, onError) {
   let previousSnapshot = new Map();
   let stopped = false;
+  let isInitialized = false;
 
   async function poll() {
     if (stopped) return;
     try {
       const snapshot = await takeSnapshot();
+
+      // Initial baseline poll — save state without dumping 100s of pre-existing processes
+      if (!isInitialized) {
+        previousSnapshot = snapshot;
+        isInitialized = true;
+        if (!stopped) setTimeout(poll, config.processPollIntervalMs);
+        return;
+      }
+
       const changes = diffSnapshots(previousSnapshot, snapshot);
       previousSnapshot = snapshot;
 

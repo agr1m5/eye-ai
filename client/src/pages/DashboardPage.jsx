@@ -36,6 +36,9 @@ import {
   AlertTriangle,
   Power,
   Loader2,
+  Target,
+  Lock,
+  Shield,
 } from 'lucide-react';
 
 function StatCard({ icon: Icon, label, value, color = 'text-accent-400', subtext, action, onClick }) {
@@ -223,25 +226,22 @@ export default function DashboardPage() {
         {isMuted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
       </button>
 
-      {/* ── THREAT LEVEL STATUS PILL — syncs with Kill-Chain state ── */}
-      {(isUnderAttack || isMitigating || isUnsafeState) && (
-        <span
-          className={`hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono font-bold uppercase tracking-widest transition-all ${
-            isUnderAttack || isUnsafeState
-              ? 'bg-red-950/90 border-red-700/80 text-red-300 shadow-[0_0_14px_rgba(239,68,68,0.35)] animate-pulse'
-              : 'bg-amber-950/80 border-amber-600/60 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.25)] animate-pulse'
-          }`}
-        >
-          {isUnderAttack || isUnsafeState ? (
-            <><AlertTriangle className="w-3 h-3 shrink-0" /> THREAT ACTIVE · UNSAFE</>
-          ) : (
-            <><RotateCcw className="w-3 h-3 shrink-0 animate-spin" /> AUTOMATION MITIGATING</>
-          )}
+      {/* ── THREAT LEVEL STATUS PILL — syncs with Kill-Chain state (CYAN -> RED -> GREEN -> 30s -> CYAN) ── */}
+      {isUnderAttack || isUnsafeState ? (
+        <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono font-bold uppercase tracking-widest bg-red-950/90 border-red-700/80 text-red-300 shadow-[0_0_14px_rgba(239,68,68,0.35)] animate-pulse transition-all">
+          <AlertTriangle className="w-3 h-3 shrink-0" /> THREAT ACTIVE · RED ALERT
         </span>
-      )}
-      {isSafeState && (
-        <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-emerald-950/80 border-emerald-500/60 text-emerald-300 text-[10px] font-mono font-bold uppercase tracking-widest shadow-[0_0_10px_rgba(16,185,129,0.25)] transition-all">
-          <ShieldCheck className="w-3 h-3 shrink-0" /> CONTAINED · SAFE
+      ) : isMitigating ? (
+        <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-mono font-bold uppercase tracking-widest bg-amber-950/80 border-amber-600/60 text-amber-300 shadow-[0_0_10px_rgba(245,158,11,0.25)] animate-pulse transition-all">
+          <RotateCcw className="w-3 h-3 shrink-0 animate-spin" /> AUTOMATION MITIGATING
+        </span>
+      ) : isSafeState ? (
+        <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-emerald-950/80 border-emerald-500/60 text-emerald-300 text-[10px] font-mono font-bold uppercase tracking-widest shadow-[0_0_10px_rgba(16,185,129,0.25)] transition-all animate-fade-in">
+          <ShieldCheck className="w-3 h-3 shrink-0" /> ATTACK TAKEN DOWN · GREEN
+        </span>
+      ) : (
+        <span className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-full border bg-cyan-950/80 border-cyan-500/60 text-cyan-300 text-[10px] font-mono font-bold uppercase tracking-widest shadow-[0_0_10px_rgba(6,182,212,0.25)] transition-all">
+          <Shield className="w-3 h-3 shrink-0 text-cyan-400" /> SECURE · CYAN MONITORING
         </span>
       )}
 
@@ -279,7 +279,7 @@ export default function DashboardPage() {
         )}
       </button>
 
-      {/* ── SIMULATE ATTACK BUTTON — syncs color with kill-chain state ── */}
+      {/* ── SIMULATE ATTACK BUTTON — syncs color: CYAN (idle) -> RED (attack) -> GREEN (taken down) ── */}
       <button
         onClick={() => {
           // In safe state: clicking resets to idle, not open modal
@@ -289,15 +289,15 @@ export default function DashboardPage() {
             setDrillModalOpen(true);
           }
         }}
-        title={isSafeState ? 'Click to exit safe state and reset to idle' : 'Launch attack simulation'}
+        title={isSafeState ? 'Attack neutralized! Click to exit safe state' : 'Launch attack simulation'}
         className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-xs font-mono font-semibold shadow-md transition-all ${
           isUnderAttack || isUnsafeState
             ? 'border-red-600/90 bg-red-700/80 hover:bg-red-600 text-white shadow-red-950/60 animate-pulse'
             : isMitigating
             ? 'border-amber-600/70 bg-amber-900/70 hover:bg-amber-800 text-amber-200 shadow-amber-950/40 animate-pulse'
             : isSafeState
-            ? 'border-emerald-600/70 bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 shadow-emerald-950/40'
-            : 'border-red-800/70 bg-red-950/60 hover:bg-red-900/80 text-red-300 shadow-red-950/40'
+            ? 'border-emerald-500/70 bg-emerald-950/90 hover:bg-emerald-900 text-emerald-300 shadow-emerald-950/40'
+            : 'border-cyan-500/60 bg-cyan-950/80 hover:bg-cyan-900/90 text-cyan-300 shadow-cyan-950/40'
         }`}
       >
         {isUnderAttack || isUnsafeState ? (
@@ -305,9 +305,9 @@ export default function DashboardPage() {
         ) : isMitigating ? (
           <><RotateCcw className="w-3.5 h-3.5 text-amber-300 animate-spin" /><span>Mitigating...</span></>
         ) : isSafeState ? (
-          <><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /><span>Safe — Reset</span></>
+          <><ShieldCheck className="w-3.5 h-3.5 text-emerald-400" /><span>Taken Down ✓</span></>
         ) : (
-          <><Skull className="w-3.5 h-3.5 text-red-400" /><span>Simulate Attack</span></>
+          <><Zap className="w-3.5 h-3.5 text-cyan-400" /><span>Simulate Attack</span></>
         )}
       </button>
     </div>
@@ -399,7 +399,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ── Dynamic Sentinel Monitors ─────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Host Process Sentinel */}
         <div className="glass-card glow-border p-4 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
@@ -477,6 +477,100 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1">
             <span>Detection: Port scans, brute force, C2 beacons</span>
             <span className="font-mono text-slate-400">Zero-Exfiltration</span>
+          </div>
+        </div>
+
+        {/* Host Device Attack Impact Monitor */}
+        <div className={`glass-card glow-border p-4 flex flex-col justify-between transition-all duration-300 ${
+          isUnderAttack || isUnsafeState || (threatCount > 0 && !isSafeState)
+            ? 'border-rose-500/50 bg-rose-950/20 shadow-[0_0_20px_rgba(244,63,94,0.15)]'
+            : 'border-white/5'
+        }`}>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-slate-300 text-xs font-semibold">
+              <Flame className={`w-4 h-4 ${isUnderAttack || isUnsafeState || threatCount > 0 ? 'text-rose-400 animate-pulse' : 'text-emerald-400'}`} />
+              <span>Host Device Attack Impact</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className={`w-2 h-2 rounded-full ${
+                isUnderAttack || isUnsafeState
+                  ? 'bg-rose-500 animate-ping'
+                  : threatCount > 0
+                  ? 'bg-amber-400 animate-pulse'
+                  : 'bg-emerald-400'
+              }`} />
+              <span className={`text-[11px] font-mono font-bold uppercase ${
+                isUnderAttack || isUnsafeState
+                  ? 'text-rose-400'
+                  : threatCount > 0
+                  ? 'text-amber-400'
+                  : 'text-emerald-400'
+              }`}>
+                {isUnderAttack || isUnsafeState ? 'HIGH IMPACT' : threatCount > 0 ? 'ELEVATED RISK' : '0% COMPROMISE'}
+              </span>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-2 my-2 py-2 border-y border-surface-700/50 text-center">
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">Blast Radius</p>
+              <p className="text-xs font-mono font-semibold text-slate-200 truncate" title={isUnderAttack ? 'Process & Filesystem' : 'Sandbox (Safe)'}>
+                {isUnderAttack || threatCount > 0 ? 'Host & Network' : 'PID Isolated'}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">CIA Exposure</p>
+              <p className={`text-xs font-mono font-bold ${isUnderAttack ? 'text-rose-400' : threatCount > 0 ? 'text-amber-400' : 'text-emerald-400'}`}>
+                {isUnderAttack ? 'High' : threatCount > 0 ? 'Medium' : 'None (Safe)'}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] uppercase tracking-wider text-slate-500">Host Defense</p>
+              <p className="text-xs font-mono font-semibold text-accent-400">EDR Guarded</p>
+            </div>
+          </div>
+
+          {/* Mini CIA Triad Progress Bars */}
+          <div className="space-y-1.5 my-1">
+            <div className="flex items-center justify-between text-[10px] text-slate-400">
+              <span>Confidentiality (Keys/Files)</span>
+              <span className={isUnderAttack ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
+                {isUnderAttack ? 'At Risk' : 'Protected'}
+              </span>
+            </div>
+            <div className="w-full bg-surface-800 h-1 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full transition-all duration-500 ${isUnderAttack ? 'w-3/4 bg-rose-500' : 'w-1/12 bg-emerald-500'}`} />
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] text-slate-400">
+              <span>Integrity (OS/Filesystem)</span>
+              <span className={isUnderAttack ? 'text-rose-400 font-bold' : 'text-emerald-400 font-bold'}>
+                {isUnderAttack ? 'Tamper Risk' : 'Verified'}
+              </span>
+            </div>
+            <div className="w-full bg-surface-800 h-1 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full transition-all duration-500 ${isUnderAttack ? 'w-4/5 bg-rose-500' : 'w-1/12 bg-emerald-500'}`} />
+            </div>
+
+            <div className="flex items-center justify-between text-[10px] text-slate-400">
+              <span>Availability (CPU/Memory)</span>
+              <span className={isUnderAttack ? 'text-amber-400 font-bold' : 'text-emerald-400 font-bold'}>
+                {isUnderAttack ? 'Elevated Load' : 'Nominal'}
+              </span>
+            </div>
+            <div className="w-full bg-surface-800 h-1 rounded-full overflow-hidden">
+              <div className={`h-full rounded-full transition-all duration-500 ${isUnderAttack ? 'w-2/3 bg-amber-500' : 'w-1/12 bg-emerald-500'}`} />
+            </div>
+          </div>
+
+          <div className="flex items-center justify-between text-[11px] text-slate-500 pt-1 border-t border-surface-700/50">
+            <span>Perimeter: Local Endpoint</span>
+            <button
+              onClick={() => navigate('/threats')}
+              className="text-accent-400 hover:text-accent-300 font-mono text-[10px] hover:underline flex items-center gap-1"
+            >
+              View Device Threats <ExternalLink className="w-2.5 h-2.5" />
+            </button>
           </div>
         </div>
       </div>

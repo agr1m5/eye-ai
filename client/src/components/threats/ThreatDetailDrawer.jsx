@@ -26,6 +26,12 @@ import {
   ExternalLink,
   Loader2,
   Filter,
+  Flame,
+  Target,
+  Lock,
+  Zap,
+  Crosshair,
+  Briefcase,
 } from 'lucide-react';
 import SeverityBadge from '@/components/common/SeverityBadge';
 import { tiApi } from '@/services/api';
@@ -51,6 +57,148 @@ function inferMitreId(type = '') {
   if (t.includes('c2') || t.includes('malware')) return 'T1071';
   if (t.includes('privilege') || t.includes('root')) return 'T1068';
   return null;
+}
+
+function CiaPillar({ label, level, description, icon: Icon }) {
+  const lvlLower = (level || 'none').toLowerCase();
+  let badgeStyle = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20';
+  let barWidth = 'w-1/12';
+  let barColor = 'bg-emerald-400';
+
+  if (lvlLower === 'high' || lvlLower === 'critical') {
+    badgeStyle = 'bg-rose-500/20 text-rose-300 border-rose-500/40';
+    barWidth = 'w-full';
+    barColor = 'bg-rose-500';
+  } else if (lvlLower === 'medium') {
+    badgeStyle = 'bg-amber-500/20 text-amber-300 border-amber-500/40';
+    barWidth = 'w-2/3';
+    barColor = 'bg-amber-500';
+  } else if (lvlLower === 'low') {
+    badgeStyle = 'bg-sky-500/20 text-sky-300 border-sky-500/40';
+    barWidth = 'w-1/3';
+    barColor = 'bg-sky-400';
+  }
+
+  return (
+    <div className="p-3 rounded-xl bg-surface-950/80 border border-white/5 flex flex-col justify-between space-y-2">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-1.5 text-slate-300 text-xs font-semibold">
+          <Icon className="w-3.5 h-3.5 text-accent-400" />
+          <span>{label}</span>
+        </div>
+        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase border ${badgeStyle}`}>
+          {level || 'None'}
+        </span>
+      </div>
+      <div className="w-full bg-surface-800 h-1.5 rounded-full overflow-hidden">
+        <div className={`h-full rounded-full transition-all duration-500 ${barWidth} ${barColor}`} />
+      </div>
+      <p className="text-[11px] text-slate-400 leading-snug">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+function getDeviceThreatImpact(threat) {
+  if (!threat) return null;
+  const type = (threat.type || '').toLowerCase();
+  const sev = (threat.severity || 'high').toUpperCase();
+
+  if (type.includes('ransom')) {
+    return {
+      severity: 'CRITICAL',
+      blastRadius: 'Host Filesystem & Local Storage Volumes',
+      containmentUrgency: 'Immediate Endpoint Isolation',
+      cia: {
+        confidentiality: { level: 'Medium', description: 'Adversary scanning user files for high-value documents before encryption.' },
+        integrity: { level: 'Critical', description: 'Mass unrecoverable file encryption and Volume Shadow Copy deletion.' },
+        availability: { level: 'Critical', description: 'Full denial of local endpoint services and application access.' },
+      },
+      consequences: [
+        'Mass cryptographic locking of user workspace, projects, and documents.',
+        'Deletion of local OS recovery points and Volume Shadow Copies.',
+        'Extortion attempt demanding cryptocurrency for decryption keys.',
+        'Potential lateral spread across connected network shares and mapped drives.',
+      ],
+      businessRisk: 'Catastrophic endpoint operational outage and permanent data loss without backups.',
+    };
+  }
+
+  if (type.includes('command') || type.includes('injection') || type.includes('shell')) {
+    return {
+      severity: 'CRITICAL',
+      blastRadius: 'Process Memory & Shell Subsystem',
+      containmentUrgency: 'Immediate PID Termination & Network Block',
+      cia: {
+        confidentiality: { level: 'High', description: 'Adversary can read local environment secrets, AWS/API keys, and bash history.' },
+        integrity: { level: 'High', description: 'Arbitrary bash command execution and unauthorized script creation.' },
+        availability: { level: 'Medium', description: 'Host can be commandeered for secondary cryptomining or DDoS attacks.' },
+      },
+      consequences: [
+        'Interactive remote shell established to external adversary C2 server.',
+        'Credential harvesting from /etc/passwd, ~/.ssh, and keychain files.',
+        'Privilege escalation attempt targeting root/sudo binaries.',
+        'Background deployment of secondary malicious payloads and rootkits.',
+      ],
+      businessRisk: 'Complete device takeover; high risk of credential exposure and compliance penalties.',
+    };
+  }
+
+  if (type.includes('honeytoken') || type.includes('credential')) {
+    return {
+      severity: 'HIGH',
+      blastRadius: 'Host Credential Store & User Environment',
+      containmentUrgency: 'Rotate Compromised Secrets Immediately',
+      cia: {
+        confidentiality: { level: 'High', description: 'Direct unauthorized access to sensitive decoys, tokens, or API credentials.' },
+        integrity: { level: 'Medium', description: 'Attacker may use stolen credentials to modify cloud or database assets.' },
+        availability: { level: 'Low', description: 'Minimal direct disruption to local host CPU/memory.' },
+      },
+      consequences: [
+        'Adversary actively hunting for secrets in local file directories.',
+        'Compromised credentials can be replayed against production cloud APIs.',
+        'Tripwire triggered: indicates host has an active intruder or rogue process.',
+      ],
+      businessRisk: 'Imminent breach of connected cloud accounts and internal production infrastructure.',
+    };
+  }
+
+  if (type.includes('sql') || type.includes('database')) {
+    return {
+      severity: 'HIGH',
+      blastRadius: 'Application Data Tier & Local Database Sockets',
+      containmentUrgency: 'Apply WAF Rule & Patch Query Bindings',
+      cia: {
+        confidentiality: { level: 'High', description: 'Exfiltration of sensitive customer records, password hashes, and PII.' },
+        integrity: { level: 'High', description: 'Unauthorized database table updates, drops, or admin account injection.' },
+        availability: { level: 'Medium', description: 'Resource exhaustion on local database engine through heavy union queries.' },
+      },
+      consequences: [
+        'Unauthorized exfiltration of user tables and password hashes.',
+        'Database tampering or administrative privilege grant injection.',
+        'Potential xp_cmdshell / UDF execution leading to host shell compromise.',
+      ],
+      businessRisk: 'Major data breach liability under GDPR/CCPA and mandatory regulatory notification.',
+    };
+  }
+
+  return {
+    severity: sev,
+    blastRadius: 'Endpoint Host Subsystem',
+    containmentUrgency: sev === 'CRITICAL' ? 'Immediate Containment' : 'Investigate & Quarantine',
+    cia: {
+      confidentiality: { level: sev === 'CRITICAL' ? 'High' : 'Medium', description: 'Potential exposure of host memory and local user data.' },
+      integrity: { level: sev === 'CRITICAL' ? 'High' : 'Medium', description: 'Potential file or registry configuration tampering.' },
+      availability: { level: sev === 'CRITICAL' ? 'Medium' : 'Low', description: 'Host process disruption or elevated background resource usage.' },
+    },
+    consequences: [
+      'Anomalous behavior detected by host endpoint monitoring sensors.',
+      'Potential unauthorized execution or lateral network communication.',
+      'Investigation required to determine adversary intent and root cause.',
+    ],
+    businessRisk: 'Elevated security risk requiring triage to prevent escalation.',
+  };
 }
 
 export default function ThreatDetailDrawer({ threat, onClose, onDismiss, onAck, onFilterType }) {
@@ -107,6 +255,7 @@ export default function ThreatDetailDrawer({ threat, onClose, onDismiss, onAck, 
   const human = getHumanThreat(threat.type, threat);
   const humanSource = getHumanSource(threat.source);
   const statusInfo = getHumanStatus(threat.status);
+  const deviceImpact = getDeviceThreatImpact(threat);
 
   return (
     <>
@@ -177,6 +326,118 @@ export default function ThreatDetailDrawer({ threat, onClose, onDismiss, onAck, 
               {human.whatHappened}
             </p>
           </div>
+
+          {/* ── Impact of Attack on This Device ──────────────── */}
+          {deviceImpact && (
+            <div className="glass-card p-4 rounded-xl border border-rose-500/30 bg-gradient-to-br from-rose-950/20 via-surface-900 to-surface-900 space-y-3.5 shadow-xl">
+              <div className="flex items-center justify-between pb-2.5 border-b border-white/5">
+                <div className="flex items-center gap-2">
+                  <div className={`p-1.5 rounded-lg border ${
+                    deviceImpact.severity === 'CRITICAL' || deviceImpact.severity === 'HIGH'
+                      ? 'bg-rose-500/20 text-rose-400 border-rose-500/30'
+                      : 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                  }`}>
+                    <Flame className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-slate-100 uppercase tracking-wider">
+                      Impact of Attack on This Device
+                    </h4>
+                    <span className="text-[10px] text-slate-400">Host Blast Radius & CIA Compromise Analysis</span>
+                  </div>
+                </div>
+                <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase border ${
+                  deviceImpact.severity === 'CRITICAL' || deviceImpact.severity === 'HIGH'
+                    ? 'bg-rose-500/20 text-rose-300 border-rose-500/40 animate-pulse'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40'
+                }`}>
+                  {deviceImpact.severity} Impact
+                </span>
+              </div>
+
+              {/* Host Blast Radius & Containment Urgency */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="p-2.5 rounded-lg bg-surface-950/80 border border-white/5">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-semibold">
+                    Host Blast Radius
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-1 text-slate-200 font-medium text-xs">
+                    <Target className="w-3.5 h-3.5 text-accent-400 shrink-0" />
+                    <span className="truncate" title={deviceImpact.blastRadius}>{deviceImpact.blastRadius}</span>
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-surface-950/80 border border-white/5">
+                  <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-semibold">
+                    Containment Urgency
+                  </span>
+                  <div className="flex items-center gap-1.5 mt-1 text-slate-200 font-medium text-xs">
+                    <ShieldAlert className="w-3.5 h-3.5 text-rose-400 shrink-0" />
+                    <span className="truncate" title={deviceImpact.containmentUrgency}>{deviceImpact.containmentUrgency}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* CIA Triad Breakdown */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between text-[11px] font-semibold text-slate-300">
+                  <span className="flex items-center gap-1.5">
+                    <Lock className="w-3 h-3 text-slate-400" />
+                    CIA Triad Exposure Breakdown
+                  </span>
+                  <span className="text-[10px] text-slate-500">Confidentiality • Integrity • Availability</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <CiaPillar
+                    label="Confidentiality"
+                    level={deviceImpact.cia?.confidentiality?.level}
+                    description={deviceImpact.cia?.confidentiality?.description}
+                    icon={Lock}
+                  />
+                  <CiaPillar
+                    label="Integrity"
+                    level={deviceImpact.cia?.integrity?.level}
+                    description={deviceImpact.cia?.integrity?.description}
+                    icon={ShieldAlert}
+                  />
+                  <CiaPillar
+                    label="Availability"
+                    level={deviceImpact.cia?.availability?.level}
+                    description={deviceImpact.cia?.availability?.description}
+                    icon={Zap}
+                  />
+                </div>
+              </div>
+
+              {/* Threat Consequences on Host */}
+              {deviceImpact.consequences && deviceImpact.consequences.length > 0 && (
+                <div className="p-3 rounded-xl bg-surface-950/80 border border-white/5 space-y-2">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-slate-200">
+                    <Crosshair className="w-3.5 h-3.5 text-rose-400" />
+                    Worst-Case Consequences on This Device
+                  </div>
+                  <ul className="space-y-1 text-xs text-slate-300">
+                    {deviceImpact.consequences.map((c, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <span className="text-rose-400 font-bold mt-0.5 text-xs">›</span>
+                        <span className="text-[11px] text-slate-300 leading-snug">{c}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              {/* Business & Host Damage */}
+              {deviceImpact.businessRisk && (
+                <div className="p-2.5 rounded-lg bg-surface-950/70 border border-white/5 flex items-start gap-2">
+                  <Briefcase className="w-3.5 h-3.5 text-sky-400 shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-slate-400 leading-relaxed">
+                    <span className="font-semibold text-slate-300">Operational Risk: </span>
+                    {deviceImpact.businessRisk}
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Description if present */}
           {threat.description && (

