@@ -18,6 +18,7 @@ import {
   Cpu,
   Globe,
   ShieldCheck,
+  ShieldOff,
   AlertTriangle,
   Terminal,
   User,
@@ -35,13 +36,35 @@ import {
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import toast from 'react-hot-toast';
+import { useNavigate } from 'react-router-dom';
 
 import PageWrapper from '@/components/layout/PageWrapper';
-import { activitiesApi } from '@/services/api';
+import { activitiesApi, authApi } from '@/services/api';
 import { useSocket } from '@/context/SocketContext';
 
 export default function ActivityPage() {
   const { subscribe, agentOnline } = useSocket();
+  const navigate = useNavigate();
+
+  // Consent gate
+  const [consentGranted, setConsentGranted] = useState(null); // null = loading
+
+  const fetchConsent = useCallback(async () => {
+    try {
+      const { data } = await authApi.getConsent();
+      setConsentGranted(data?.data?.granted !== false); // treat missing file as granted
+    } catch {
+      setConsentGranted(true); // fail-open (server error shouldn't block the page)
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchConsent();
+    // Re-check whenever the user switches back to this tab
+    const onFocus = () => fetchConsent();
+    window.addEventListener('focus', onFocus);
+    return () => window.removeEventListener('focus', onFocus);
+  }, [fetchConsent]);
 
   // Data state
   const [activities, setActivities] = useState([]);
@@ -220,7 +243,36 @@ export default function ActivityPage() {
     <PageWrapper title="Host Activity">
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
 
-        {/* ── Page Header ──────────────────────────────────────── */}
+        {/* ── Consent Gate ─────────────────────────────────────── */}
+        {consentGranted === false && (
+          <div className="flex flex-col items-center justify-center min-h-[60vh] text-center gap-6">
+            <div className="p-5 rounded-2xl bg-red-950/40 border border-red-700/30">
+              <ShieldOff className="w-14 h-14 text-red-400 mx-auto" />
+            </div>
+            <div className="space-y-2 max-w-md">
+              <h2 className="text-xl font-bold text-slate-100">Host Monitoring Paused</h2>
+              <p className="text-sm text-slate-400 leading-relaxed">
+                Device access permission has been <span className="text-red-400 font-semibold">revoked</span>.
+                The Eye agent is not collecting process, network, or system log telemetry.
+              </p>
+              <p className="text-xs text-slate-500 mt-1">
+                To resume monitoring, grant device access in Settings.
+              </p>
+            </div>
+            <button
+              onClick={() => navigate('/settings')}
+              className="btn-primary flex items-center gap-2 px-5 py-2.5 text-sm"
+            >
+              <ShieldCheck className="w-4 h-4" />
+              Go to Settings → Grant Access
+            </button>
+          </div>
+        )}
+
+        {/* ── Main content — only shown when consent is granted ── */}
+        {consentGranted !== false && (
+          <>
+
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <div className="flex items-center gap-2.5">
@@ -736,12 +788,13 @@ export default function ActivityPage() {
                       {JSON.stringify(selectedActivity.metadata, null, 2)}
                     </pre>
                   </div>
-                )}
               </div>
             )}
           </div>
         </div>
-      )}
+        </> {/* end consentGranted content */}
+        )}
+      </div>
     </PageWrapper>
   );
 }

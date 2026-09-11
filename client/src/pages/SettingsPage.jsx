@@ -44,9 +44,10 @@ export default function SettingsPage() {
   const [hasCopied, setHasCopied] = useState(false);
 
   // Device consent state
-  const [consent, setConsent]             = useState(null); // null = loading
+  const [consent, setConsent]               = useState(null);
   const [consentLoading, setConsentLoading] = useState(true);
   const [consentChanging, setConsentChanging] = useState(false);
+  const [revokeConfirmOpen, setRevokeConfirmOpen] = useState(false);
 
   // Correlation rule engine settings
   const defaultWindowMs    = user?.preferences?.correlationWindowMs    ?? 15 * 60 * 1000;
@@ -92,11 +93,7 @@ export default function SettingsPage() {
   };
 
   const handleRevokeConsent = async () => {
-    if (!window.confirm(
-      'Are you sure you want to REVOKE device access?\n\n' +
-      'The agent will stop collecting telemetry on the next restart. ' +
-      'No new threats or host activity will be reported until permission is re-granted.'
-    )) return;
+    setRevokeConfirmOpen(false);
     setConsentChanging(true);
     try {
       const { data } = await authApi.setConsent(false);
@@ -368,7 +365,7 @@ export default function SettingsPage() {
                 </button>
               ) : (
                 <button
-                  onClick={handleRevokeConsent}
+                  onClick={() => setRevokeConfirmOpen(true)}
                   disabled={consentChanging || consentLoading}
                   className="btn-danger text-xs px-4 py-2 flex items-center gap-1.5"
                 >
@@ -398,6 +395,40 @@ export default function SettingsPage() {
           </p>
         </Section>
       </div>
+
+      {/* Revoke Consent Confirmation Modal */}
+      <Modal
+        isOpen={revokeConfirmOpen}
+        onClose={() => setRevokeConfirmOpen(false)}
+        title="Revoke Device Access?"
+        size="sm"
+      >
+        <div className="space-y-4">
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-red-950/50 border border-red-700/40 text-xs text-red-300">
+            <ShieldOff className="w-4 h-4 mt-0.5 shrink-0 text-red-400" />
+            <div className="space-y-1">
+              <p className="font-semibold text-red-200">This will stop all host monitoring</p>
+              <p>The Eye agent will cease collecting process, network, and system log telemetry within 30 seconds. No new threats or host activity will be reported until access is re-granted.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-1">
+            <button
+              onClick={() => setRevokeConfirmOpen(false)}
+              className="btn-ghost text-xs px-4 py-2"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleRevokeConsent}
+              disabled={consentChanging}
+              className="btn-danger text-xs px-4 py-2 flex items-center gap-1.5"
+            >
+              <ShieldOff className="w-3.5 h-3.5" />
+              {consentChanging ? 'Revoking…' : 'Yes, Revoke Access'}
+            </button>
+          </div>
+        </div>
+      </Modal>
 
       {/* One-Time Token Reveal Modal */}
       <Modal
