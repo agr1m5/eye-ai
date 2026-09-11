@@ -16,7 +16,7 @@ async function main() {
   assertConfigured();
 
   // Ask / verify device monitoring permission before accessing any host resources
-  await ensureDevicePermissionGranted();
+  const permissionGranted = await ensureDevicePermissionGranted();
 
   const classifier = new ThreatClassifier();
   const correlator = new CorrelationEngine();
@@ -89,33 +89,50 @@ async function main() {
   }
 
   log(`Detected platform: ${process.platform} (${process.arch})`);
-  log("Starting collectors: system logs, processes, network, honeytoken canaries");
 
   // Mutable references so watchConsent can stop & restart them
-  let stopLog     = startSystemLogCollector(handleEvent, handleError);
-  let stopProcess = startProcessCollector(handleEvent, handleError);
-  let stopNetwork = startNetworkCollector(handleEvent, handleError);
-  let stopCanary  = startHoneytokenCollector(handleEvent, handleError);
-  let flushInterval = setInterval(() => transport.flush(), config.batchIntervalMs);
+  let stopLog     = () => {};
+  let stopProcess = () => {};
+  let stopNetwork = () => {};
+  let stopCanary  = () => {};
+  let flushInterval = null;
 
-  // Watch consent file every 30s — stop or restart collectors live
-  const stopConsentWatch = watchConsent({
-    onRevoke: () => {
-      log('Consent revoked — pausing all collectors and telemetry flush.');
+  function startCollectors() {
+    log("Starting collectors: system logs, processes, network, honeytoken canaries");
+    stopLog     = startSystemLogCollector(handleEvent, handleError);
+    stopProcess = startProcessCollector(handleEvent, handleError);
+    stopNetwork = startNetworkCollector(handleEvent, handleError);
+    stopCanary  = startHoneytokenCollector(handleEvent, handleError);
+    if (!flushInterval) {
+      flushInterval = setInterval(() => transport.flush(), config.batchIntervalMs);
+    }
+  }
+
+  function pauseCollectors() {
+    log("Pausing all collectors and telemetry flush — device access permission revoked/pending.");
+    if (flushInterval) {
       clearInterval(flushInterval);
       flushInterval = null;
-      stopLog();     stopLog     = () => {};
-      stopProcess(); stopProcess = () => {};
-      stopNetwork(); stopNetwork = () => {};
-      stopCanary();  stopCanary  = () => {};
+    }
+    stopLog();     stopLog     = () => {};
+    stopProcess(); stopProcess = () => {};
+    stopNetwork(); stopNetwork = () => {};
+    stopCanary();  stopCanary  = () => {};
+  }
+
+  if (permissionGranted) {
+    startCollectors();
+  } else {
+    log("⚠️ Agent connected in STANDBY mode. Host monitoring is paused until permission is granted.");
+  }
+
+  // Watch consent file every 3s — stop or restart collectors live
+  const stopConsentWatch = watchConsent({
+    onRevoke: () => {
+      pauseCollectors();
     },
     onGrant: () => {
-      log('Consent restored — restarting all collectors.');
-      stopLog     = startSystemLogCollector(handleEvent, handleError);
-      stopProcess = startProcessCollector(handleEvent, handleError);
-      stopNetwork = startNetworkCollector(handleEvent, handleError);
-      stopCanary  = startHoneytokenCollector(handleEvent, handleError);
-      flushInterval = setInterval(() => transport.flush(), config.batchIntervalMs);
+      startCollectors();
     },
   });
 

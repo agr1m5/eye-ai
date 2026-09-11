@@ -12,7 +12,7 @@ import readline from 'readline';
 const CONSENT_DIR  = path.join(os.homedir(), '.eye');
 const CONSENT_FILE = path.join(CONSENT_DIR,  'device_consent.json');
 
-const WATCH_INTERVAL_MS = 30_000; // re-check consent every 30 seconds
+const WATCH_INTERVAL_MS = 3_000; // re-check consent every 3 seconds for instant UI response
 
 /**
  * Checks whether device access consent has already been granted.
@@ -113,23 +113,18 @@ export async function ensureDevicePermissionGranted() {
       return true;
     } else {
       recordConsent(false);
-      console.log('\n❌ Permission DENIED. Agent will not monitor this device without authorization.');
-      console.log('Exiting safely.\n');
-      process.exit(0);
+      console.log('\n❌ Permission DENIED. Agent will run in STANDBY mode with collectors paused.');
+      return false;
     }
   }
 
   // Non-interactive (daemon / headless service) without prior consent
-  console.error('\n' + '!'.repeat(78));
-  console.error('❌ [SECURITY ERROR] Device monitoring permission has NOT been granted on this machine.');
-  console.error('Eye requires explicit authorization before accessing host telemetry.');
-  console.error('');
-  console.error('To grant permission:');
-  console.error('  1. Run "npm run agent" in an interactive terminal to approve the prompt.');
-  console.error('  OR');
-  console.error('  2. Add DEVICE_ACCESS_GRANTED=true to agent/.env');
-  console.error('!'.repeat(78) + '\n');
-  process.exit(1);
+  console.warn('\n' + '='.repeat(78));
+  console.warn('⚠️  [NOTICE] Device monitoring permission has NOT been granted on this machine.');
+  console.warn('Kindly provide permissions in Settings or run "npm run agent" to start host monitoring.');
+  console.warn('Agent is entering STANDBY mode (zero collectors active, zero telemetry sent).');
+  console.warn('='.repeat(78) + '\n');
+  return false;
 }
 
 // Allow standalone execution: node src/consent.js --grant
