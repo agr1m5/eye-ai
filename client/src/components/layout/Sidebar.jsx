@@ -10,14 +10,18 @@
  * The `active` state is derived from React Router's `useLocation` so no prop
  * drilling is needed — each link knows whether it's current.
  */
+import { useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import {
   ShieldCheck, LayoutDashboard, Skull, GitBranch,
   MessageSquare, FileText, Upload, Settings, LogOut,
   Radio, Wifi, WifiOff, Crosshair, Target, ClipboardList, Activity, Zap,
+  Power, Loader2,
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
 import { useSocket } from '@/context/SocketContext';
+import { authApi } from '@/services/api';
 import { formatDistanceToNow } from 'date-fns';
 
 /* ── Nav link definitions ───────────────────────────────────── */
@@ -41,6 +45,25 @@ export default function Sidebar() {
   const { logout } = useAuth();
   const { agentOnline, agentLastSeen, connected } = useSocket();
   const navigate = useNavigate();
+  const [toggling, setToggling] = useState(false);
+
+  const handleToggleAgent = async (forcedState) => {
+    if (toggling) return;
+    const targetState = typeof forcedState === 'boolean' ? forcedState : !agentOnline;
+    setToggling(true);
+    try {
+      await authApi.toggleAgent(targetState);
+      if (targetState) {
+        toast.success('Agent activated & permissions granted');
+      } else {
+        toast.success('Agent monitoring paused');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to toggle agent');
+    } finally {
+      setToggling(false);
+    }
+  };
 
   const handleLogout = async () => {
     await logout();
@@ -70,28 +93,58 @@ export default function Sidebar() {
 
       {/* ── Agent status card ────────────────────────────────── */}
       <div className="mx-3 mt-4 p-3 rounded-lg bg-surface-800/60 border border-white/5">
-        <div className="flex items-center gap-2">
-          {agentOnline ? (
-            <Wifi className="w-3.5 h-3.5 text-accent-400 shrink-0" />
-          ) : (
-            <WifiOff className="w-3.5 h-3.5 text-slate-500 shrink-0" />
-          )}
-          <span className={`text-xs font-semibold ${agentOnline ? 'text-accent-400' : 'text-slate-500'}`}>
-            Agent {agentOnline ? 'Connected' : 'Offline'}
-          </span>
-          {connected && (
-            <Radio className="w-3 h-3 text-slate-600 ml-auto" />
-          )}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            {agentOnline ? (
+              <Wifi className="w-3.5 h-3.5 text-accent-400 shrink-0" />
+            ) : (
+              <WifiOff className="w-3.5 h-3.5 text-slate-500 shrink-0" />
+            )}
+            <span className={`text-xs font-semibold ${agentOnline ? 'text-accent-400' : 'text-slate-500'}`}>
+              Agent {agentOnline ? 'Online' : 'Offline'}
+            </span>
+          </div>
+
+          {/* Quick Toggle Switch */}
+          <button
+            type="button"
+            role="switch"
+            aria-checked={agentOnline}
+            onClick={() => handleToggleAgent()}
+            disabled={toggling}
+            title={agentOnline ? 'Click to turn off agent' : 'Click to turn on agent'}
+            className={`relative inline-flex h-4 w-7 shrink-0 cursor-pointer rounded-full border border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+              agentOnline ? 'bg-emerald-500' : 'bg-surface-700'
+            } ${toggling ? 'opacity-50 cursor-wait' : ''}`}
+          >
+            <span
+              className={`pointer-events-none inline-block h-3 w-3 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                agentOnline ? 'translate-x-3' : 'translate-x-0'
+              }`}
+            />
+          </button>
         </div>
+
         {agentLastSeen && (
-          <p className="text-[10px] text-slate-600 mt-1 ml-5">
+          <p className="text-[10px] text-slate-500 mt-1 ml-5">
             Last seen {formatDistanceToNow(agentLastSeen, { addSuffix: true })}
           </p>
         )}
-        {!agentOnline && !agentLastSeen && (
-          <p className="text-[10px] text-slate-600 mt-1 ml-5">
-            Start the agent to begin monitoring
-          </p>
+
+        {/* Prominent Turn On Button when Agent is Offline */}
+        {!agentOnline && (
+          <button
+            onClick={() => handleToggleAgent(true)}
+            disabled={toggling}
+            className="mt-2.5 w-full flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md bg-accent-500/10 hover:bg-accent-500/20 text-accent-400 border border-accent-500/30 text-[11px] font-semibold transition-all shadow-sm"
+          >
+            {toggling ? (
+              <Loader2 className="w-3 h-3 animate-spin" />
+            ) : (
+              <Power className="w-3 h-3" />
+            )}
+            {toggling ? 'Starting Agent...' : 'Turn On Agent'}
+          </button>
         )}
       </div>
 

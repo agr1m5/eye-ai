@@ -340,3 +340,8 @@ export function getIO() {
   }
   return io;
 }
+
+export function isAgentConnected(userId) {
+  if (!userId) return false;
+  return activeAgents.has(userId.toString());
+}

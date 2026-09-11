@@ -18,6 +18,7 @@ import {
   pairValidation,
   getConsent,
   setConsent,
+  toggleAgent,
 } from '../controllers/agentController.js';
 
 const router = Router();
@@ -30,5 +31,6 @@ router.delete('/pair',                    revokeAgent);
 router.get(   '/status',                  getAgentStatus);
 router.get(   '/consent',                 getConsent);
 router.patch( '/consent',                 setConsent);
+router.post(  '/toggle',                  toggleAgent);
 
 export default router;

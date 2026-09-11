@@ -15,7 +15,7 @@ import AttackChainGraph from '@/components/dashboard/AttackChainGraph';
 import AttackSimulatorModal from '@/components/dashboard/AttackSimulatorModal';
 import { useLiveStats } from '@/hooks/useLiveStats';
 import { useSocket } from '@/context/SocketContext';
-import { threatApi, defenseApi } from '@/services/api';
+import { threatApi, defenseApi, authApi } from '@/services/api';
 import { tacticalAudio } from '@/utils/tacticalAudio';
 import {
   Activity,
@@ -34,9 +34,11 @@ import {
   Volume2,
   VolumeX,
   AlertTriangle,
+  Power,
+  Loader2,
 } from 'lucide-react';
 
-function StatCard({ icon: Icon, label, value, color = 'text-accent-400', subtext, onClick }) {
+function StatCard({ icon: Icon, label, value, color = 'text-accent-400', subtext, action, onClick }) {
   return (
     <div
       onClick={onClick}
@@ -55,7 +57,10 @@ function StatCard({ icon: Icon, label, value, color = 'text-accent-400', subtext
           </div>
         </div>
       </div>
-      <span className={`text-3xl font-bold tracking-tight ${color}`}>{value}</span>
+      <div className="flex items-baseline justify-between gap-2">
+        <span className={`text-3xl font-bold tracking-tight ${color}`}>{value}</span>
+        {action}
+      </div>
       {subtext && <p className="text-xs text-slate-500 mt-1">{subtext}</p>}
     </div>
   );
@@ -81,6 +86,7 @@ export default function DashboardPage() {
   const [drillModalOpen, setDrillModalOpen] = useState(false);
   const [autopilot, setAutopilot] = useState(() => localStorage.getItem('eye_autopilot') === 'true');
   const [isMuted, setIsMuted] = useState(() => (tacticalAudio ? tacticalAudio.isMuted() : false));
+  const [togglingAgent, setTogglingAgent] = useState(false);
 
   // Shared attack state lifted from AttackChainGraph — drives header sync
   // 'idle' | 'attack' | 'mitigating' | 'safe' | 'unsafe'
@@ -135,6 +141,24 @@ export default function DashboardPage() {
   const handleToggleAudio = () => {
     const muted = tacticalAudio.toggleMute();
     setIsMuted(muted);
+  };
+
+  const handleToggleAgent = async (targetState) => {
+    if (togglingAgent) return;
+    const shouldEnable = typeof targetState === 'boolean' ? targetState : !agentOnline;
+    setTogglingAgent(true);
+    try {
+      await authApi.toggleAgent(shouldEnable);
+      if (shouldEnable) {
+        toast.success('Agent activated & permissions granted');
+      } else {
+        toast.success('Agent monitoring paused');
+      }
+    } catch (err) {
+      toast.error(err.response?.data?.message || 'Failed to toggle agent');
+    } finally {
+      setTogglingAgent(false);
+    }
   };
 
   // Execute Red Team Drill simulation
@@ -326,6 +350,28 @@ export default function DashboardPage() {
           value={agentOnline ? 'ONLINE' : 'OFFLINE'}
           color={agentOnline ? 'text-emerald-400' : 'text-slate-500'}
           subtext={agentOnline ? 'paired & streaming' : 'agent daemon offline'}
+          action={
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleToggleAgent();
+              }}
+              disabled={togglingAgent}
+              title={agentOnline ? 'Turn off agent' : 'Turn on agent'}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-semibold transition-all border ${
+                agentOnline
+                  ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+                  : 'bg-accent-500/20 text-accent-400 border-accent-500/40 hover:bg-accent-500/30 shadow-sm'
+              }`}
+            >
+              {togglingAgent ? (
+                <Loader2 className="w-3 h-3 animate-spin" />
+              ) : (
+                <Power className="w-3 h-3" />
+              )}
+              {agentOnline ? 'Turn Off' : 'Turn On'}
+            </button>
+          }
           onClick={() => navigate('/settings')}
         />
       </div>

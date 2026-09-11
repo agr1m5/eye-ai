@@ -21,9 +21,11 @@
 import crypto   from 'crypto';
 import bcrypt   from 'bcryptjs';
 import { body, validationResult } from 'express-validator';
+import { spawn } from 'child_process';
 
 import User from '../models/User.js';
 import { createAuditEntry } from '../services/auditService.js';
+import { isAgentConnected } from '../config/socket.js';
 
 const SALT_ROUNDS       = 12;
 const TOKEN_BYTES       = 32;
@@ -229,3 +231,115 @@ export async function setConsent(req, res) {
     return res.status(500).json({ status: 'error', message: err.message });
   }
 }
+
+let spawnedAgentProcess = null;
+
+/* ── POST /api/agent/toggle ─────────────────────────────────── */
+export async function toggleAgent(req, res, next) {
+  try {
+    const { enable } = req.body;
+    const shouldEnable = enable !== false;
+
+    // 1. Write ~/.eye/device_consent.json
+    if (!fs.existsSync(CONSENT_DIR)) fs.mkdirSync(CONSENT_DIR, { recursive: true });
+    const payload = {
+      status:    shouldEnable ? 'granted' : 'denied',
+      timestamp: new Date().toISOString(),
+      hostname:  os.hostname(),
+      platform:  os.platform(),
+      arch:      os.arch(),
+      user:      os.userInfo().username,
+      scopes: ['process_monitoring', 'network_socket_audit', 'system_auth_log_stream', 'honeytoken_canary_trap'],
+    };
+    fs.writeFileSync(CONSENT_FILE, JSON.stringify(payload, null, 2), { encoding: 'utf8', mode: 0o600 });
+
+    // 2. Update agent/.env
+    try {
+      if (fs.existsSync(AGENT_ENV)) {
+        let envContent = fs.readFileSync(AGENT_ENV, 'utf8');
+        if (envContent.includes('DEVICE_ACCESS_GRANTED=')) {
+          envContent = envContent.replace(
+            /DEVICE_ACCESS_GRANTED=.*/,
+            `DEVICE_ACCESS_GRANTED=${shouldEnable}`
+          );
+        } else {
+          envContent += `\nDEVICE_ACCESS_GRANTED=${shouldEnable}\n`;
+        }
+        fs.writeFileSync(AGENT_ENV, envContent, 'utf8');
+      }
+    } catch {}
+
+    const currentlyConnected = isAgentConnected(req.user._id);
+
+    if (shouldEnable) {
+      if (!currentlyConnected) {
+        const candidateDirs = [
+          path.resolve(process.cwd(), '../agent'),
+          path.resolve(process.cwd(), 'agent'),
+          '/Users/agrimgupta/Desktop/eye-ai/agent',
+        ];
+        const agentDir = candidateDirs.find(d => fs.existsSync(path.join(d, 'src', 'index.js')));
+
+        if (agentDir) {
+          if (spawnedAgentProcess && !spawnedAgentProcess.killed) {
+            try { spawnedAgentProcess.kill(); } catch {}
+          }
+          spawnedAgentProcess = spawn(process.execPath, ['src/index.js'], {
+            cwd: agentDir,
+            detached: true,
+            stdio: 'ignore',
+            env: { ...process.env, DEVICE_ACCESS_GRANTED: 'true' },
+          });
+          spawnedAgentProcess.unref();
+          console.log(`[AgentController] Spawned agent process with PID ${spawnedAgentProcess.pid}`);
+        }
+      }
+
+      createAuditEntry({
+        userId:     req.user._id,
+        action:     'agent.turned_on',
+        targetType: 'Agent',
+        targetId:   req.user._id,
+        metadata:   { currentlyConnected },
+        ip:         req.ip,
+      });
+
+      return res.status(200).json({
+        status:  'success',
+        message: 'Agent turned on and monitoring permissions granted.',
+        data: {
+          enabled:   true,
+          connected: currentlyConnected,
+        },
+      });
+    } else {
+      if (spawnedAgentProcess && !spawnedAgentProcess.killed) {
+        try {
+          spawnedAgentProcess.kill('SIGTERM');
+          spawnedAgentProcess = null;
+        } catch {}
+      }
+
+      createAuditEntry({
+        userId:     req.user._id,
+        action:     'agent.turned_off',
+        targetType: 'Agent',
+        targetId:   req.user._id,
+        metadata:   {},
+        ip:         req.ip,
+      });
+
+      return res.status(200).json({
+        status:  'success',
+        message: 'Agent monitoring turned off.',
+        data: {
+          enabled:   false,
+          connected: false,
+        },
+      });
+    }
+  } catch (err) {
+    next(err);
+  }
+}
+

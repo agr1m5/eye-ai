@@ -53,6 +53,7 @@ export const authApi = {
   agentStatus:       ()        => api.get('/agent/status'),
   getConsent:        ()        => api.get('/agent/consent'),
   setConsent:        (granted) => api.patch('/agent/consent', { granted }),
+  toggleAgent:       (enable)  => api.post('/agent/toggle', { enable }),
 };
 
 // Threats

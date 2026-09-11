@@ -33,6 +33,8 @@ import {
   Check,
   Send,
   Lightbulb,
+  Power,
+  Settings,
 } from 'lucide-react';
 import { formatDistanceToNow, format } from 'date-fns';
 import toast from 'react-hot-toast';
@@ -48,6 +50,7 @@ export default function ActivityPage() {
 
   // Consent gate
   const [consentGranted, setConsentGranted] = useState(null); // null = loading
+  const [enablingAgent, setEnablingAgent] = useState(false);
 
   const fetchConsent = useCallback(async () => {
     try {
@@ -259,13 +262,35 @@ export default function ActivityPage() {
                 To resume monitoring, grant device access in Settings.
               </p>
             </div>
-            <button
-              onClick={() => navigate('/settings')}
-              className="btn-primary flex items-center gap-2 px-5 py-2.5 text-sm"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              Go to Settings → Grant Access
-            </button>
+            <div className="flex flex-wrap items-center justify-center gap-3">
+              <button
+                onClick={async () => {
+                  setEnablingAgent(true);
+                  try {
+                    await authApi.toggleAgent(true);
+                    toast.success('Agent activated & host monitoring resumed');
+                    setConsentGranted(true);
+                    fetchData();
+                  } catch (err) {
+                    toast.error(err.response?.data?.message || 'Failed to activate agent');
+                  } finally {
+                    setEnablingAgent(false);
+                  }
+                }}
+                disabled={enablingAgent}
+                className="btn-primary flex items-center gap-2 px-5 py-2.5 text-sm"
+              >
+                <Power className="w-4 h-4" />
+                {enablingAgent ? 'Starting Agent...' : 'Turn On Agent & Resume Monitoring'}
+              </button>
+              <button
+                onClick={() => navigate('/settings')}
+                className="btn-secondary flex items-center gap-2 px-4 py-2.5 text-sm"
+              >
+                <Settings className="w-4 h-4" />
+                Settings
+              </button>
+            </div>
           </div>
         )}
 
