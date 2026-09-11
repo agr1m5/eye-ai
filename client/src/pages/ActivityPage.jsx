@@ -544,10 +544,12 @@ export default function ActivityPage() {
           </div>
         </div>
 
+        </>
+        )}
       </div>
 
       {/* ── Inspection & AI Assistance Drawer ─────────────────── */}
-      {selectedActivity && (
+      {consentGranted !== false && selectedActivity && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-xl h-full bg-surface-900 border-l border-white/10 p-6 flex flex-col space-y-4 overflow-y-auto">
             {/* Drawer Header */}
@@ -788,13 +790,12 @@ export default function ActivityPage() {
                       {JSON.stringify(selectedActivity.metadata, null, 2)}
                     </pre>
                   </div>
+                )}
               </div>
             )}
           </div>
         </div>
-        </> {/* end consentGranted content */}
-        )}
-      </div>
+      )}
     </PageWrapper>
   );
 }
