@@ -24,6 +24,7 @@ import {
 } from 'react';
 import { io } from 'socket.io-client';
 import { useAuth } from './AuthContext';
+import { authApi } from '@/services/api';
 
 const SocketContext = createContext(null);
 
@@ -43,8 +44,18 @@ export function SocketProvider({ children }) {
         socketRef.current = null;
         setConnected(false);
       }
+      setAgentOnline(false);
       return;
     }
+
+    // Check initial agent connectivity status via REST
+    authApi.getAgentStatus().then(({ data }) => {
+      if (data?.status === 'success' && data.data) {
+        if (typeof data.data.connected === 'boolean') {
+          setAgentOnline(data.data.connected);
+        }
+      }
+    }).catch(() => {});
 
     // Create connection with JWT in handshake auth
     const socket = io('/', {
@@ -61,7 +72,7 @@ export function SocketProvider({ children }) {
 
     // Agent heartbeat / status events (§5.2)
     socket.on('agent:status', ({ connected: agentConn, lastSeen, metrics }) => {
-      setAgentOnline(agentConn);
+      setAgentOnline(Boolean(agentConn));
       if (lastSeen) setAgentLastSeen(new Date(lastSeen));
       if (metrics) setAgentMetrics(metrics);
     });
@@ -91,10 +102,12 @@ export function SocketProvider({ children }) {
     socket: socketRef.current,
     connected,
     agentOnline,
+    setAgentOnline,
     agentLastSeen,
     agentMetrics,
     subscribe,
   };
+
 
   return <SocketContext.Provider value={value}>{children}</SocketContext.Provider>;
 }

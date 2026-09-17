@@ -444,3 +444,23 @@ export function isAgentConnected(userId) {
   if (!userId) return false;
   return activeAgents.has(userId.toString());
 }
+
+export function disconnectAgent(userId) {
+  if (!userId) return;
+  const uId = userId.toString();
+  const active = activeAgents.get(uId);
+  if (active && io) {
+    const agentSocket = io.of('/agent').sockets.get(active.socketId);
+    if (agentSocket) {
+      agentSocket.disconnect(true);
+    }
+    activeAgents.delete(uId);
+    const clientRoom = `user:${uId}`;
+    io.of('/').to(clientRoom).emit('agent:status', {
+      connected: false,
+      label: active.label,
+      lastSeen: new Date(),
+    });
+  }
+}
+

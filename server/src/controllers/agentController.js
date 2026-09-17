@@ -18,6 +18,9 @@
  *
  * All routes require the `protect` middleware.
  */
+import fs       from 'fs';
+import path     from 'path';
+import os       from 'os';
 import crypto   from 'crypto';
 import bcrypt   from 'bcryptjs';
 import { body, validationResult } from 'express-validator';
@@ -25,11 +28,53 @@ import { spawn } from 'child_process';
 
 import User from '../models/User.js';
 import { createAuditEntry } from '../services/auditService.js';
-import { isAgentConnected } from '../config/socket.js';
+import { isAgentConnected, disconnectAgent } from '../config/socket.js';
 
 const SALT_ROUNDS       = 12;
 const TOKEN_BYTES       = 32;
 const TOKEN_TTL_DAYS    = 365;
+
+const CONSENT_DIR  = path.join(os.homedir(), '.eye');
+const CONSENT_FILE = path.join(CONSENT_DIR,  'device_consent.json');
+
+export function getAgentDir() {
+  const candidateDirs = [
+    path.resolve(process.cwd(), '../agent'),
+    path.resolve(process.cwd(), 'agent'),
+    path.resolve(path.dirname(new URL(import.meta.url).pathname), '../../../agent'),
+    '/Users/agrimgupta/Desktop/eye-ai/agent',
+  ];
+  return candidateDirs.find(d => fs.existsSync(path.join(d, 'src', 'index.js')));
+}
+
+export function getAgentEnvPath() {
+  const dir = getAgentDir();
+  return dir ? path.join(dir, '.env') : null;
+}
+
+export function syncAgentEnv({ backendUrl, userId, agentToken, deviceAccessGranted }) {
+  const envPath = getAgentEnvPath();
+  if (!envPath) return;
+
+  let content = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
+  const upsert = (key, val) => {
+    if (val === undefined || val === null) return;
+    const reg = new RegExp(`^${key}=.*$`, 'm');
+    if (reg.test(content)) {
+      content = content.replace(reg, `${key}=${val}`);
+    } else {
+      content += `\n${key}=${val}\n`;
+    }
+  };
+
+  if (backendUrl) upsert('BACKEND_URL', backendUrl);
+  if (userId) upsert('USER_ID', userId);
+  if (agentToken) upsert('AGENT_TOKEN', agentToken);
+  if (deviceAccessGranted !== undefined) upsert('DEVICE_ACCESS_GRANTED', deviceAccessGranted);
+
+  fs.writeFileSync(envPath, content.trim() + '\n', 'utf8');
+}
+
 
 /* ── Validation ──────────────────────────────────────────────── */
 export const pairValidation = [
@@ -63,6 +108,13 @@ export async function pairAgent(req, res, next) {
       agentTokenHash:      tokenHash,
       agentTokenExpiresAt: expiresAt,
       agentLabel:          label || 'Local Agent',
+    });
+
+    // Auto-sync into agent/.env for seamless local experience
+    syncAgentEnv({
+      backendUrl: process.env.BACKEND_URL || 'http://localhost:5050',
+      userId: req.user._id.toString(),
+      agentToken: plainToken,
     });
 
     // Return the plain token ONCE — it cannot be recovered after this response
@@ -124,14 +176,16 @@ export async function getAgentStatus(req, res) {
     .select('+agentTokenHash')
     .lean();
 
-  const paired  = !!userWithToken?.agentTokenHash;
-  const expired = agentTokenExpiresAt ? agentTokenExpiresAt < new Date() : false;
+  const paired    = !!userWithToken?.agentTokenHash;
+  const expired   = agentTokenExpiresAt ? agentTokenExpiresAt < new Date() : false;
+  const connected = isAgentConnected(req.user._id);
 
   return res.status(200).json({
     status: 'success',
     data: {
       paired,
       expired,
+      connected,
       label:     paired ? agentLabel : null,
       expiresAt: paired ? agentTokenExpiresAt : null,
     },
@@ -139,14 +193,6 @@ export async function getAgentStatus(req, res) {
 }
 
 /* ── GET /api/agent/consent ──────────────────────────────────── */
-import fs   from 'fs';
-import path from 'path';
-import os   from 'os';
-
-const CONSENT_DIR  = path.join(os.homedir(), '.eye');
-const CONSENT_FILE = path.join(CONSENT_DIR,  'device_consent.json');
-const AGENT_ENV    = path.join(process.cwd(), '..', 'agent', '.env');
-
 function readConsentFile() {
   try {
     if (fs.existsSync(CONSENT_FILE)) {
@@ -195,23 +241,8 @@ export async function setConsent(req, res) {
     };
     fs.writeFileSync(CONSENT_FILE, JSON.stringify(payload, null, 2), { encoding: 'utf8', mode: 0o600 });
 
-    // 2. Update DEVICE_ACCESS_GRANTED in agent/.env (if file exists)
-    try {
-      if (fs.existsSync(AGENT_ENV)) {
-        let envContent = fs.readFileSync(AGENT_ENV, 'utf8');
-        if (envContent.includes('DEVICE_ACCESS_GRANTED=')) {
-          envContent = envContent.replace(
-            /DEVICE_ACCESS_GRANTED=.*/,
-            `DEVICE_ACCESS_GRANTED=${granted}`
-          );
-        } else {
-          envContent += `\nDEVICE_ACCESS_GRANTED=${granted}\n`;
-        }
-        fs.writeFileSync(AGENT_ENV, envContent, 'utf8');
-      }
-    } catch (envErr) {
-      console.warn('[Consent] Could not update agent/.env:', envErr.message);
-    }
+    // 2. Update DEVICE_ACCESS_GRANTED in agent/.env
+    syncAgentEnv({ deviceAccessGranted: String(granted) });
 
     createAuditEntry({
       userId:     req.user._id,
@@ -253,46 +284,64 @@ export async function toggleAgent(req, res, next) {
     };
     fs.writeFileSync(CONSENT_FILE, JSON.stringify(payload, null, 2), { encoding: 'utf8', mode: 0o600 });
 
-    // 2. Update agent/.env
-    try {
-      if (fs.existsSync(AGENT_ENV)) {
-        let envContent = fs.readFileSync(AGENT_ENV, 'utf8');
-        if (envContent.includes('DEVICE_ACCESS_GRANTED=')) {
-          envContent = envContent.replace(
-            /DEVICE_ACCESS_GRANTED=.*/,
-            `DEVICE_ACCESS_GRANTED=${shouldEnable}`
-          );
-        } else {
-          envContent += `\nDEVICE_ACCESS_GRANTED=${shouldEnable}\n`;
-        }
-        fs.writeFileSync(AGENT_ENV, envContent, 'utf8');
-      }
-    } catch {}
-
-    const currentlyConnected = isAgentConnected(req.user._id);
-
     if (shouldEnable) {
-      if (!currentlyConnected) {
-        const candidateDirs = [
-          path.resolve(process.cwd(), '../agent'),
-          path.resolve(process.cwd(), 'agent'),
-          '/Users/agrimgupta/Desktop/eye-ai/agent',
-        ];
-        const agentDir = candidateDirs.find(d => fs.existsSync(path.join(d, 'src', 'index.js')));
+      // Verify or auto-provision pairing token
+      const user = await User.findById(req.user._id).select('+agentTokenHash');
+      const envPath = getAgentEnvPath();
+      let tokenInEnv = null;
+      if (envPath && fs.existsSync(envPath)) {
+        const text = fs.readFileSync(envPath, 'utf8');
+        const match = text.match(/^AGENT_TOKEN=(.+)$/m);
+        if (match) tokenInEnv = match[1].trim();
+      }
 
-        if (agentDir) {
-          if (spawnedAgentProcess && !spawnedAgentProcess.killed) {
-            try { spawnedAgentProcess.kill(); } catch {}
-          }
-          spawnedAgentProcess = spawn(process.execPath, ['src/index.js'], {
-            cwd: agentDir,
-            detached: true,
-            stdio: 'ignore',
-            env: { ...process.env, DEVICE_ACCESS_GRANTED: 'true' },
-          });
-          spawnedAgentProcess.unref();
-          console.log(`[AgentController] Spawned agent process with PID ${spawnedAgentProcess.pid}`);
+      let plainToken = tokenInEnv;
+      const isTokenValid = user?.agentTokenHash && tokenInEnv && (await bcrypt.compare(tokenInEnv, user.agentTokenHash));
+
+      if (!isTokenValid) {
+        plainToken = crypto.randomBytes(TOKEN_BYTES).toString('hex');
+        const tokenHash = await bcrypt.hash(plainToken, SALT_ROUNDS);
+        const expiresAt = new Date(Date.now() + TOKEN_TTL_DAYS * 24 * 60 * 60 * 1000);
+
+        await User.findByIdAndUpdate(req.user._id, {
+          agentTokenHash:      tokenHash,
+          agentTokenExpiresAt: expiresAt,
+          agentLabel:          user?.agentLabel || 'Local SOC Agent',
+        });
+      }
+
+      // Update agent/.env
+      syncAgentEnv({
+        backendUrl: process.env.BACKEND_URL || 'http://localhost:5050',
+        userId: req.user._id.toString(),
+        agentToken: plainToken,
+        deviceAccessGranted: 'true',
+      });
+
+      // Spawn or restart agent process
+      const agentDir = getAgentDir();
+      if (agentDir) {
+        if (spawnedAgentProcess && !spawnedAgentProcess.killed) {
+          try { spawnedAgentProcess.kill('SIGTERM'); } catch {}
+          spawnedAgentProcess = null;
         }
+
+        const agentEnv = {
+          ...process.env,
+          BACKEND_URL: process.env.BACKEND_URL || 'http://localhost:5050',
+          USER_ID: req.user._id.toString(),
+          AGENT_TOKEN: plainToken,
+          DEVICE_ACCESS_GRANTED: 'true',
+        };
+
+        spawnedAgentProcess = spawn(process.execPath, ['src/index.js'], {
+          cwd: agentDir,
+          detached: true,
+          stdio: 'inherit',
+          env: agentEnv,
+        });
+        spawnedAgentProcess.unref();
+        console.log(`[AgentController] Spawned agent process with PID ${spawnedAgentProcess.pid}`);
       }
 
       createAuditEntry({
@@ -300,7 +349,7 @@ export async function toggleAgent(req, res, next) {
         action:     'agent.turned_on',
         targetType: 'Agent',
         targetId:   req.user._id,
-        metadata:   { currentlyConnected },
+        metadata:   { currentlyConnected: isAgentConnected(req.user._id) },
         ip:         req.ip,
       });
 
@@ -309,16 +358,23 @@ export async function toggleAgent(req, res, next) {
         message: 'Agent turned on and monitoring permissions granted.',
         data: {
           enabled:   true,
-          connected: currentlyConnected,
+          connected: true,
         },
       });
     } else {
+      syncAgentEnv({
+        deviceAccessGranted: 'false',
+      });
+
       if (spawnedAgentProcess && !spawnedAgentProcess.killed) {
         try {
           spawnedAgentProcess.kill('SIGTERM');
           spawnedAgentProcess = null;
         } catch {}
       }
+
+      // Terminate any active socket connection for this agent
+      disconnectAgent(req.user._id);
 
       createAuditEntry({
         userId:     req.user._id,
@@ -342,4 +398,5 @@ export async function toggleAgent(req, res, next) {
     next(err);
   }
 }
+
 

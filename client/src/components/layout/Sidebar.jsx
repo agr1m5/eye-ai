@@ -43,7 +43,7 @@ const SECONDARY_ITEMS = [
 
 export default function Sidebar() {
   const { logout } = useAuth();
-  const { agentOnline, agentLastSeen, connected } = useSocket();
+  const { agentOnline, setAgentOnline, agentLastSeen, connected } = useSocket();
   const navigate = useNavigate();
   const location = useLocation();
   const [toggling, setToggling] = useState(false);
@@ -83,10 +83,14 @@ export default function Sidebar() {
     const targetState = typeof forcedState === 'boolean' ? forcedState : !agentOnline;
     setToggling(true);
     try {
-      await authApi.toggleAgent(targetState);
+      const { data } = await authApi.toggleAgent(targetState);
       if (targetState) {
+        if (data?.data?.connected && setAgentOnline) {
+          setAgentOnline(true);
+        }
         toast.success('Agent activated & permissions granted');
       } else {
+        if (setAgentOnline) setAgentOnline(false);
         toast.success('Agent monitoring paused');
       }
     } catch (err) {

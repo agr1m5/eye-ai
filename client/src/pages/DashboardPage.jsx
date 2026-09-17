@@ -113,7 +113,7 @@ export default function DashboardPage() {
   const isMitigating   = attackState === 'mitigating';
   const isSafeState    = attackState === 'safe';
   const isUnsafeState  = attackState === 'unsafe';
-  const { subscribe } = useSocket();
+  const { subscribe, setAgentOnline } = useSocket();
 
   const {
     threatCount,
@@ -151,10 +151,14 @@ export default function DashboardPage() {
     const shouldEnable = typeof targetState === 'boolean' ? targetState : !agentOnline;
     setTogglingAgent(true);
     try {
-      await authApi.toggleAgent(shouldEnable);
+      const { data } = await authApi.toggleAgent(shouldEnable);
       if (shouldEnable) {
+        if (data?.data?.connected && setAgentOnline) {
+          setAgentOnline(true);
+        }
         toast.success('Agent activated & permissions granted');
       } else {
+        if (setAgentOnline) setAgentOnline(false);
         toast.success('Agent monitoring paused');
       }
     } catch (err) {
