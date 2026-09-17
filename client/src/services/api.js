@@ -51,6 +51,7 @@ export const authApi = {
   pairAgent:         (label)   => api.post('/agent/pair', { label }),
   revokeAgent:       ()        => api.delete('/agent/pair'),
   agentStatus:       ()        => api.get('/agent/status'),
+  getAgentStatus:    ()        => api.get('/agent/status'),
   getConsent:        ()        => api.get('/agent/consent'),
   setConsent:        (granted) => api.patch('/agent/consent', { granted }),
   toggleAgent:       (enable)  => api.post('/agent/toggle', { enable }),

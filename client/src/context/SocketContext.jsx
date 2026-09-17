@@ -48,14 +48,18 @@ export function SocketProvider({ children }) {
       return;
     }
 
-    // Check initial agent connectivity status via REST
-    authApi.getAgentStatus().then(({ data }) => {
-      if (data?.status === 'success' && data.data) {
-        if (typeof data.data.connected === 'boolean') {
-          setAgentOnline(data.data.connected);
+    // Check initial agent connectivity status via REST safely
+    const fetchStatus = authApi.agentStatus || authApi.getAgentStatus;
+    if (typeof fetchStatus === 'function') {
+      fetchStatus().then(({ data }) => {
+        if (data?.status === 'success' && data.data) {
+          if (typeof data.data.connected === 'boolean') {
+            setAgentOnline(data.data.connected);
+          }
         }
-      }
-    }).catch(() => {});
+      }).catch(() => {});
+    }
+
 
     // Create connection with JWT in handshake auth
     const socket = io('/', {
