@@ -44,7 +44,7 @@ export default function MessageBubble({ message }) {
 
     lines.forEach((line, idx) => {
       // Interactive SOAR countermeasure card
-      const actionMatch = line.match(/\[ACTION:(block_ip|kill_process|isolate_host|quarantine_file):([^\]]+)\]/);
+      const actionMatch = line.match(/\[ACTION:(kill_process|isolate_host|quarantine_file):([^\]]+)\]/);
       if (actionMatch) {
         const [, actionType, target] = actionMatch;
         const isExecuted = executedActions[target];

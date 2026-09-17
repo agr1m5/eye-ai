@@ -15,7 +15,7 @@ Include relevant MITRE ATT&CK technique IDs (e.g. T1059), severity ratings, and 
 
 ACTIVE DEFENSE CAPABILITIES:
 When investigating threats or when an analyst requests containment, you can suggest executable countermeasure cards using this tag format:
-[ACTION:block_ip:TARGET_IP] — Block an offending IP at the firewall
+[ACTION:quarantine_file:FILE_PATH] — Quarantine a suspicious binary into the secure vault
 [ACTION:kill_process:TARGET_PID] — Terminate a compromised process PID via SIGKILL
 [ACTION:isolate_host:HOST_NAME] — Isolate the host endpoint from external egress
 

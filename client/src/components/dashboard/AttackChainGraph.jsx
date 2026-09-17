@@ -293,7 +293,6 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
           ...prev[key],
           [action.actionType]: true,
           killed: action.actionType === 'kill_process' ? true : prev[key]?.killed,
-          blocked: action.actionType === 'block_ip' ? true : prev[key]?.blocked,
           isolated: action.actionType === 'isolate_host' ? true : prev[key]?.isolated,
           rearmed: action.actionType === 'quarantine_file' ? true : prev[key]?.rearmed,
         },
@@ -301,7 +300,7 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
           ...prev.live_feed,
           [action.actionType]: true,
           killed: action.actionType === 'kill_process' ? true : prev.live_feed?.killed,
-          blocked: action.actionType === 'block_ip' ? true : prev.live_feed?.blocked,
+          isolated: action.actionType === 'isolate_host' ? true : prev.live_feed?.isolated,
         },
       }));
       setAttackState('safe');
@@ -314,7 +313,6 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       // Map actionType to the relevant containment flag
       const actionFlagMap = {
         kill_process: 'killed',
-        block_ip: 'blocked',
         isolate_host: 'isolated',
         quarantine_file: 'rearmed',
         rearm_honeytoken: 'rearmed',
@@ -416,12 +414,12 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       tactic: 'Reconnaissance / Initial Access',
       mitre: 'T1595 / T1190',
       status: isSafe ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
-      statusLabel: isSafe ? 'IP BLOCKED' : isUnderAttack ? 'MALICIOUS' : 'SECURE',
+      statusLabel: isSafe ? 'INSPECTED' : isUnderAttack ? 'MALICIOUS' : 'SECURE',
       title: activeChain.attackerIp,
       subtitle: activeChain.attackerLocation,
       detail: `Originator IP: ${activeChain.attackerIp} (${activeChain.attackerIsp}). External automated probe searching for vulnerable exposed services.`,
-      actionLabel: isSafe ? 'Firewall Drop Active ✓' : isUnderAttack ? 'Block IP via SOAR' : 'Filter Ingress IP',
-      actionType: 'block_ip',
+      actionLabel: null,
+      actionType: null,
       target: activeChain.attackerIp,
       icon: Skull,
       color: 'red',
@@ -532,8 +530,8 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
           },
         }));
 
-        // If process killed or IP blocked, set safe state (turning buttons green)
-        if (actionType === 'kill_process' || actionType === 'block_ip') {
+        // If countermeasure taken, set safe state (turning buttons green)
+        if (actionType === 'kill_process' || actionType === 'isolate_host' || actionType === 'quarantine_file') {
           setAttackState('safe');
         }
       }
@@ -632,11 +630,11 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
               executedBy: 'automation',
             }),
             defenseApi.contain({
-              actionType: 'block_ip',
-              target: simIp,
+              actionType: 'isolate_host',
+              target: 'soc-collector-01',
               incidentId: currentIncId,
               threatId: currentThrId,
-              reason: 'SOAR Autonomous Ingress Drop (IP Blocked)',
+              reason: 'SOAR Autonomous Host Isolation (Egress Restricted)',
               executedBy: 'automation',
             }),
           ]);

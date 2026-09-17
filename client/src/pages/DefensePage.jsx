@@ -21,6 +21,7 @@ import {
   Trash2,
   Plus,
   Flame,
+  FileWarning,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { defenseApi } from '@/services/api';
@@ -28,9 +29,9 @@ import { tacticalAudio } from '@/utils/tacticalAudio';
 
 export default function DefensePage() {
   const [actions, setActions] = useState([]);
-  const [stats, setStats] = useState({ total: 0, active: 0, blockedIps: 0, isolatedHosts: 0, killedProcesses: 0 });
+  const [stats, setStats] = useState({ total: 0, active: 0, isolatedHosts: 0, quarantinedFiles: 0, killedProcesses: 0 });
   const [loading, setLoading] = useState(true);
-  const [dispatchType, setDispatchType] = useState('block_ip');
+  const [dispatchType, setDispatchType] = useState('isolate_host');
   const [dispatchTarget, setDispatchTarget] = useState('');
   const [dispatchReason, setDispatchReason] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -57,7 +58,7 @@ export default function DefensePage() {
   const handleManualContain = async (e) => {
     e.preventDefault();
     if (!dispatchTarget.trim()) {
-      toast.error('Please enter a target (IP or PID)');
+      toast.error('Please enter a target (PID, hostname, or file path)');
       return;
     }
 
@@ -96,24 +97,25 @@ export default function DefensePage() {
     }
   };
 
-  const blockedIpsList = actions.filter((a) => a.actionType === 'block_ip' && a.status === 'active');
+  const quarantinedList = actions.filter((a) => a.actionType === 'quarantine_file' && a.status === 'active');
+  const activeEnforcements = actions.filter((a) => (a.actionType === 'quarantine_file' || a.actionType === 'isolate_host') && a.status === 'active');
 
   return (
     <PageWrapper
       title="Active Defense & SOAR Grid"
-      subtitle="Autonomous countermeasure enforcement · firewall IP blocks · process isolation · honeytokens"
+      subtitle="Autonomous countermeasure enforcement · process isolation · file quarantine · honeytokens"
     >
       {/* ── Top Metric Cards ─────────────────────────────────────── */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <div className="stat-card accent-top">
           <div className="flex items-center justify-between mb-2">
-            <span className="text-xs text-slate-500 font-medium">Blocked IPs</span>
-            <div className="p-1.5 rounded-lg bg-red-950/60 text-red-400 border border-red-800/40">
-              <Server className="w-4 h-4" />
+            <span className="text-xs text-slate-500 font-medium">Quarantined Files</span>
+            <div className="p-1.5 rounded-lg bg-amber-950/60 text-amber-400 border border-amber-800/40">
+              <FileWarning className="w-4 h-4" />
             </div>
           </div>
-          <p className="text-2xl font-bold font-mono text-red-400">{stats.blockedIps || 0}</p>
-          <span className="text-[11px] text-slate-500 font-mono">Firewall Drop Rules Active</span>
+          <p className="text-2xl font-bold font-mono text-amber-400">{stats.quarantinedFiles || quarantinedList.length}</p>
+          <span className="text-[11px] text-slate-500 font-mono">Vaulted & Stripped to 0400</span>
         </div>
 
         <div className="stat-card accent-top">
@@ -170,20 +172,19 @@ export default function DefensePage() {
               onChange={(e) => setDispatchType(e.target.value)}
               className="w-full bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 focus:outline-none focus:border-accent-500"
             >
-              <option value="block_ip">Block Attacker IP</option>
-              <option value="kill_process">Terminate Process (PID)</option>
               <option value="isolate_host">Isolate Host Network</option>
               <option value="quarantine_file">Quarantine Suspicious Binary</option>
+              <option value="kill_process">Terminate Process (PID)</option>
             </select>
           </div>
 
           <div>
             <label className="block text-xs font-mono text-slate-400 mb-1">
-              Target (IP / PID / Path)
+              Target (PID / Path / Host)
             </label>
             <input
               type="text"
-              placeholder={dispatchType === 'kill_process' ? 'e.g. 4921' : 'e.g. 198.51.100.9'}
+              placeholder={dispatchType === 'kill_process' ? 'e.g. 4921' : dispatchType === 'quarantine_file' ? '/tmp/malware.sh' : 'soc-collector-01'}
               value={dispatchTarget}
               onChange={(e) => setDispatchTarget(e.target.value)}
               className="w-full bg-surface-800 border border-surface-700 rounded-lg px-3 py-2 text-xs font-mono text-slate-200 placeholder-slate-500 focus:outline-none focus:border-accent-500"
@@ -220,9 +221,9 @@ export default function DefensePage() {
         <div className="xl:col-span-2 glass-card glow-border overflow-hidden">
           <div className="flex items-center justify-between p-4 border-b border-surface-700/80 bg-surface-800/40">
             <div className="flex items-center gap-2">
-              <Server className="w-4 h-4 text-red-400" />
+              <FileWarning className="w-4 h-4 text-amber-400" />
               <h3 className="text-xs font-bold text-slate-100 uppercase tracking-wide font-mono">
-                Active Firewall Blocklist ({blockedIpsList.length})
+                Active Quarantine & Isolation ({activeEnforcements.length})
               </h3>
             </div>
             <button
@@ -235,17 +236,18 @@ export default function DefensePage() {
 
           {loading && actions.length === 0 ? (
             <div className="p-8 flex justify-center"><Spinner /></div>
-          ) : blockedIpsList.length === 0 ? (
+          ) : activeEnforcements.length === 0 ? (
             <div className="p-8 text-center text-slate-500 text-xs">
               <ShieldCheck className="w-8 h-8 text-slate-600 mx-auto mb-1.5" />
-              <p>No active IP block rules currently enforced.</p>
+              <p>No active quarantine or host isolation countermeasures currently enforced.</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full text-left text-xs">
                 <thead className="bg-surface-800/60 text-slate-400 uppercase font-mono text-[11px] border-b border-surface-700/50">
                   <tr>
-                    <th className="py-2.5 px-4">Blocked IP</th>
+                    <th className="py-2.5 px-4">Action</th>
+                    <th className="py-2.5 px-4">Target</th>
                     <th className="py-2.5 px-4">Enforced At</th>
                     <th className="py-2.5 px-4">Reason</th>
                     <th className="py-2.5 px-4">Initiator</th>
@@ -253,16 +255,25 @@ export default function DefensePage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-surface-700/40">
-                  {blockedIpsList.map((item) => (
+                  {activeEnforcements.map((item) => (
                     <tr key={item._id} className="hover:bg-surface-800/30 font-mono">
-                      <td className="py-3 px-4 text-red-300 font-bold flex items-center gap-1.5">
-                        <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" />
-                        <span>{item.target}</span>
+                      <td className="py-3 px-4">
+                        <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          item.actionType === 'isolate_host'
+                            ? 'bg-cyan-950/80 text-cyan-300 border border-cyan-800/40'
+                            : 'bg-amber-950/80 text-amber-300 border border-amber-800/40'
+                        }`}>
+                          {item.actionType.replace('_', ' ')}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-200 font-bold flex items-center gap-1.5">
+                        <span className={`w-2 h-2 rounded-full ${item.actionType === 'isolate_host' ? 'bg-cyan-400' : 'bg-amber-400'} animate-pulse`} />
+                        <span className="truncate max-w-[200px]">{item.target}</span>
                       </td>
                       <td className="py-3 px-4 text-slate-400 text-[11px]">
                         {new Date(item.createdAt).toLocaleTimeString()}
                       </td>
-                      <td className="py-3 px-4 text-slate-300 font-sans text-xs truncate max-w-[200px]">
+                      <td className="py-3 px-4 text-slate-300 font-sans text-xs truncate max-w-[180px]">
                         {item.reason}
                       </td>
                       <td className="py-3 px-4 text-slate-400 text-[11px]">
@@ -275,7 +286,7 @@ export default function DefensePage() {
                           onClick={() => handleRelease(item._id, item.target)}
                           className="px-2.5 py-1 text-[11px] rounded bg-surface-800 hover:bg-emerald-950/80 text-slate-300 hover:text-emerald-300 border border-surface-700 hover:border-emerald-700/60 transition-all"
                         >
-                          Unblock
+                          {item.actionType === 'quarantine_file' ? 'Restore File' : 'Release Isolation'}
                         </button>
                       </td>
                     </tr>

@@ -17,6 +17,8 @@ const defenseActionSchema = new mongoose.Schema(
 
     actionType: {
       type:     String,
+      // 'block_ip' retained in schema enum solely for read compatibility with historical
+      // audit documents; new containment requests are strictly rejected with 400 at controller.
       enum:     ['kill_process', 'block_ip', 'isolate_host', 'quarantine_file'],
       required: true,
       index:    true,

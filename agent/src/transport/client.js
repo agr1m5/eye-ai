@@ -71,7 +71,6 @@ export class AgentTransport {
   _setupDefenseHandlers() {
     if (!this.socket) return;
 
-    this.blockedIps = new Set();
     this.hostIsolated = false;
 
     this.socket.on("agent:command:contain", async (cmd) => {
@@ -101,11 +100,6 @@ export class AgentTransport {
           } else {
             receipt.output = `Could not parse PID from target: ${cmd.target}`;
           }
-        } else if (cmd.actionType === 'block_ip') {
-          const ip = String(cmd.target).trim();
-          this.blockedIps?.add(ip);
-          receipt.success = true;
-          receipt.output = `Firewall block active for IP: ${ip} (simulation)`;
         } else if (cmd.actionType === 'isolate_host') {
           const res = await isolateHost();
           receipt.success = res.success;
@@ -119,6 +113,9 @@ export class AgentTransport {
           receipt.success = res.success;
           receipt.output = res.output;
           receipt.hash = res.hash || null;
+        } else {
+          receipt.success = false;
+          receipt.output = `Unsupported actionType: ${cmd.actionType}`;
         }
 
         this.onLog(`[SOAR Containment] Status: ${receipt.output} (success: ${receipt.success})`);
@@ -133,11 +130,7 @@ export class AgentTransport {
 
     this.socket.on("agent:command:release", async (cmd) => {
       this.onLog(`[SOAR Release] Releasing: ${cmd.actionType} on ${cmd.target}`);
-      if (cmd.actionType === 'block_ip') {
-        const ip = String(cmd.target).trim();
-        this.blockedIps?.delete(ip);
-        this.onLog(`[SOAR Release] block_ip release: unblocked ${ip} in local table.`);
-      } else if (cmd.actionType === 'isolate_host') {
+      if (cmd.actionType === 'isolate_host') {
         const res = await releaseHost();
         this.hostIsolated = false;
         this.onLog(`[SOAR Release] isolate_host release result: ${res.output}`);

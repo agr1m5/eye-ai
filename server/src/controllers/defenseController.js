@@ -3,7 +3,6 @@
  *
  * Dispatches active countermeasures to endpoint agents:
  *  - kill_process: kills malicious process tree
- *  - block_ip: blocks attacker IP in firewall
  *  - isolate_host: toggles network isolation
  *  - quarantine_file: vaults suspicious binaries
  */
@@ -38,7 +37,7 @@ export async function executeContainment(req, res, next) {
       });
     }
 
-    const validActions = ['kill_process', 'block_ip', 'isolate_host', 'quarantine_file'];
+    const validActions = ['kill_process', 'isolate_host', 'quarantine_file'];
     if (!validActions.includes(actionType)) {
       return res.status(400).json({
         status:  'error',
@@ -202,8 +201,8 @@ export async function listDefenseActions(req, res, next) {
     const activeCounts = {
       total: actions.length,
       active: actions.filter((a) => a.status === 'active').length,
-      blockedIps: actions.filter((a) => a.status === 'active' && a.actionType === 'block_ip').length,
       isolatedHosts: actions.filter((a) => a.status === 'active' && a.actionType === 'isolate_host').length,
+      quarantinedFiles: actions.filter((a) => a.status === 'active' && a.actionType === 'quarantine_file').length,
       killedProcesses: actions.filter((a) => a.actionType === 'kill_process').length,
     };
 

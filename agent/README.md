@@ -11,6 +11,7 @@ The lightweight, autonomous endpoint telemetry agent for Eye. Runs locally on **
   - **Linux**: `journalctl` / `/var/log/auth.log` log streaming, `ss` network socket inspection, `ps` process differential tracking.
   - **macOS**: `log stream --style ndjson` unified logging, `lsof -i -P -n` socket tracing, POSIX process table auditing.
 - 🍯 **Honeytoken File Tripwire**: Monitors deceptive canary credential files for unauthorized access or tampering attempts.
+- 🛡️ **SOAR Endpoint Containment Enforcement**: Real-time OS-level response actions verified before reporting success: `kill_process` (SIGKILL on suspicious process trees), `isolate_host` (packet filtering isolation restricting egress while keeping SOC telemetry connected), and `quarantine_file` (secure binary vault with permissions stripped to 0400).
 - 🛡️ **Edge Correlation & Brute Force Detection**: Correlates multiple events sharing an origin entity within sliding time windows to prevent alert fatigue.
 - 🔄 **Resilient Bounded Transport**: Buffers findings locally during network interruptions or backend maintenance and automatically re-synchronizes with exponential backoff.
 

@@ -182,15 +182,28 @@ export default function DashboardPage() {
 
       // Autopilot autonomous containment
       if (autopilot && (finding.severity === 'critical' || finding.severity === 'high')) {
-        const targetIp = finding.source?.ip;
         const targetPid = finding.source?.pid;
-        if (targetIp || targetPid) {
+        const targetPath = finding.source?.filePath;
+        let actionType = null;
+        let target = null;
+
+        if (targetPid) {
+          actionType = 'kill_process';
+          target = String(targetPid);
+        } else if (targetPath) {
+          actionType = 'quarantine_file';
+          target = targetPath;
+        } else if (finding.type === 'c2_beacon') {
+          actionType = 'isolate_host';
+          target = 'soc-collector-01';
+        }
+
+        if (actionType && target) {
           try {
-            const actionType = targetPid ? 'kill_process' : 'block_ip';
-            const target = targetPid ? String(targetPid) : targetIp;
             await defenseApi.contain({
               actionType,
               target,
+              filePath: targetPath || null,
               threatId: finding._id,
               reason: `Autopilot containment: ${finding.type} (${finding.severity})`,
               autoApproved: true,

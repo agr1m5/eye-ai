@@ -40,6 +40,7 @@ Whether monitoring a standalone workstation or a fleet of Linux/macOS servers, E
 | 📁 **Forensic Log Importer** | Ingests and extracts indicators of compromise (IoCs) from raw uploads (`auth.log`, `access.log`, `syslog`, JSON). |
 | 📄 **Executive PDF Reporting** | Generates professional, printable compliance and incident summary reports on demand. |
 | 🍯 **Honeytoken Deception Defense** | Embedded canary file tripwires detecting unauthorized file access and credential tampering. |
+| 🛡️ **Active SOAR Countermeasures** | Automated and analyst-directed endpoint containment: `kill_process` (SIGKILL process tree), `isolate_host` (network isolation preserving SOC control channel), and `quarantine_file` (safe binary vaulting stripped to 0400). |
 | 🐧 **Native Linux & macOS Support** | Out-of-the-box launchers, Docker Compose support, and native `systemd` daemon automation. |
 
 ---
