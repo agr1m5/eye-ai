@@ -48,7 +48,8 @@ export async function listActivities(req, res, next) {
 
     if (search && search.trim()) {
       const term = search.trim();
-      const regex = new RegExp(term, 'i');
+      const escaped = term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const regex = new RegExp(escaped, 'i');
       filter.$or = [
         { description: regex },
         { entity: regex },
