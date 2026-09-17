@@ -1,11 +1,11 @@
-# 🛡️ Eye — AI-Augmented Autonomous Security Operations Center (SOC)
+# 🛡️ Eye AI — Autonomous Security Operations Center (SOC)
 
 <p align="center">
-  <img src="client/public/vite.svg" width="80" height="80" alt="Eye Logo" />
+  <img src="client/public/vite.svg" width="80" height="80" alt="Eye AI Logo" />
 </p>
 
 <p align="center">
-  <b>Next-Generation Real-Time Threat Detection, Cross-Correlation, Forensic Analysis & AI Copilot for Modern Cyber Defense.</b>
+  <b>Next-Generation Real-Time Threat Detection, Cross-Correlation, Active SOAR Containment & Local AI Copilot for Modern Cyber Defense.</b>
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
   <a href="https://react.dev"><img src="https://img.shields.io/badge/React-18.3-61DAFB?style=for-the-badge&logo=react" alt="React" /></a>
   <a href="https://www.mongodb.com"><img src="https://img.shields.io/badge/MongoDB-7.0%2B-47A248?style=for-the-badge&logo=mongodb" alt="MongoDB" /></a>
   <a href="https://socket.io"><img src="https://img.shields.io/badge/Socket.IO-4.7%2B-010101?style=for-the-badge&logo=socket.io" alt="Socket.IO" /></a>
-  <a href="https://www.docker.com"><img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker" alt="Docker" /></a>
+  <a href="https://docker.com"><img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker" alt="Docker" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-purple?style=for-the-badge" alt="License" /></a>
 </p>
 
@@ -22,26 +22,26 @@
 
 ## 📖 Overview
 
-**Eye** is an enterprise-grade, real-time Security Operations Center (SOC) platform designed to defend infrastructure and endpoints against emerging threats. It combines lightweight, edge-native telemetry collectors with backend correlation engines, interactive threat visualizers, and a local or cloud-powered **AI SOC Analyst Copilot**.
+**Eye AI** is an enterprise-grade, real-time Security Operations Center (SOC) platform designed to defend infrastructure and endpoints against emerging threats. It combines lightweight, edge-native telemetry collectors with backend correlation engines, interactive threat visualizers, and a private, local or cloud-powered **AI SOC Analyst Copilot**.
 
-Whether monitoring a standalone workstation or a fleet of Linux/macOS servers, Eye provides zero-overhead log processing, instant alert translation, automated incident grouping, and compliance reporting.
+Whether monitoring a standalone workstation or a fleet of Linux and macOS servers, Eye AI delivers zero-overhead log processing, instant alert translation, automated incident grouping, active SOAR countermeasures, and executive compliance reporting.
 
 ---
 
-## ✨ Key Features
+## ✨ Key Capabilities
 
 | Feature | Description |
 |---|---|
-| ⚡ **Live Telemetry Gateway** | Bi-directional WebSocket pipeline streaming events, process diffs, network connections, and system auth logs in real time. |
-| 🧠 **AI SOC Analyst Copilot** | Multi-turn conversational AI (powered by **Ollama / Llama 3.2** locally or OpenAI) that explains complex threats, suggests remediation, and analyzes logs. |
-| 🎯 **Automated MITRE ATT&CK Mapping** | Automatically tags detected threats with standard MITRE tactics, techniques, and severity scoring (Critical, High, Medium, Low). |
-| ⚡ **Live Kill-Chain Attack Graph** | 6-stage Lockheed Martin & MITRE ATT&CK progression visualizer with one-click active SOAR countermeasures. |
-| 🚨 **Incident Correlation & Timeline** | Automatically correlates related security events sharing an entity or IP into unified incident cases with full audit notes. |
+| ⚡ **Live Telemetry Gateway** | Bi-directional WebSocket pipeline streaming events, process diffs, network connections, and system authentication logs in real time. |
+| 🧠 **AI SOC Analyst Copilot** | Multi-turn conversational AI (powered by local **Ollama / Llama 3.2** or OpenAI) providing threat explanations, mitigation guidance, and log forensics. |
+| 🎯 **Automated MITRE ATT&CK Mapping** | Automatically classifies threats against MITRE tactics, techniques, and severity scoring (Critical, High, Medium, Low). |
+| ⚡ **Live Kill-Chain Attack Graph** | 6-stage Lockheed Martin & MITRE ATT&CK progression visualizer with **independent, decoupled stage actions** for surgical defense execution. |
+| 🛡️ **Active SOAR Containment** | Verified endpoint enforcement with zero false reporting: `kill_process` (SIGKILL process tree), `isolate_host` (firewall containment preserving SOC management socket), and `quarantine_file` (safe binary vaulting restricted to 0400). |
+| 🚨 **Incident Correlation & Timeline** | Automatically correlates related security events sharing an entity, PID, or IP into unified incident cases with full audit trails. |
 | 📁 **Forensic Log Importer** | Ingests and extracts indicators of compromise (IoCs) from raw uploads (`auth.log`, `access.log`, `syslog`, JSON). |
+| 🍯 **Honeytoken Deception Defense** | Canary file tripwires detecting unauthorized file access and credential tampering with automated SOAR alerting. |
 | 📄 **Executive PDF Reporting** | Generates professional, printable compliance and incident summary reports on demand. |
-| 🍯 **Honeytoken Deception Defense** | Embedded canary file tripwires detecting unauthorized file access and credential tampering. |
-| 🛡️ **Active SOAR Countermeasures** | Automated and analyst-directed endpoint containment: `kill_process` (SIGKILL process tree), `isolate_host` (network isolation preserving SOC control channel), and `quarantine_file` (safe binary vaulting stripped to 0400). |
-| 🐧 **Native Linux & macOS Support** | Out-of-the-box launchers, Docker Compose support, and native `systemd` daemon automation. |
+| 🐧 **Native Linux & macOS Support** | Out-of-the-box shell launchers, Docker Compose stack, and native Linux `systemd` daemon automation. |
 
 ---
 
@@ -49,12 +49,12 @@ Whether monitoring a standalone workstation or a fleet of Linux/macOS servers, E
 
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
-│                       Eye Web SOC Client                                │
+│                             Eye Web SOC Client                              │
 │       React 18 • Vite • Tailwind CSS • Lucide • Chart.js • Leaflet          │
 └──────────────────────────────────────┬──────────────────────────────────────┘
                                        │ HTTP REST / WebSocket (Port 5180 ➔ 5050)
 ┌──────────────────────────────────────▼──────────────────────────────────────┐
-│                       Eye SOC Server Engine                             │
+│                           Eye SOC Server Engine                             │
 │       Node.js • Express • Socket.IO • Mongoose • PDFKit • Security Rules    │
 ├──────────────────────────────┬───────────────────────────────┬──────────────┤
 │                              │                               │              │
@@ -65,10 +65,11 @@ Whether monitoring a standalone workstation or a fleet of Linux/macOS servers, E
 └──────────────────────────────▲───────────────────────────────┴──────────────┘
                                │ Authenticated Agent Protocol (HMAC Token)
 ┌──────────────────────────────┴──────────────────────────────────────────────┐
-│                    Eye Autonomous Endpoint Agent                        │
+│                    Eye Autonomous Endpoint Agent                            │
 │  • Linux: journalctl / auth.log • ss socket audit • ps process tree         │
 │  • macOS: Unified Log stream • lsof socket audit • POSIX process snapshot   │
 │  • Edge Classifiers: SQLi, XSS, Path Traversal, Brute-Force, Honeytokens   │
+│  • SOAR Enforcers: Real SIGKILL, iptables/pfctl host isolation, quarantine  │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -76,32 +77,34 @@ Whether monitoring a standalone workstation or a fleet of Linux/macOS servers, E
 
 ## 🚀 Quick Start
 
-### Option 1: One-Command Automated Launcher (Recommended)
+### Option 1: Automated Launcher (Recommended)
 
 Clone the repository and run the interactive launcher:
+
 ```bash
-git clone https://github.com/agr1m5/log-sage.git
-cd log-sage
+git clone https://github.com/agr1m5/eye-ai.git
+cd eye-ai
 
 # Launch full Web SOC + Agent
 ./start.sh
 
-# Or for Native Desktop Electron Window:
+# Or launch as native Desktop Electron application:
 ./start.sh desktop
 ```
 
-*For Linux-specific environments, you can also use `./start-linux.sh`.*
+*For Linux-specific environments and systemd daemon management, run `./start-linux.sh`.*
 
 ---
 
-### Option 2: Docker Compose (Zero-Config Container Stack)
+### Option 2: Docker Compose (Containerized Stack)
 
-Run MongoDB, the Backend Server, and the Nginx-optimized Frontend Client via Docker:
+Spin up MongoDB, the Backend Server, and the Nginx-optimized Frontend Client:
+
 ```bash
 docker compose up -d
 ```
 - **Web Dashboard**: [http://localhost:5180](http://localhost:5180)
-- **API Server**: [http://localhost:5000](http://localhost:5000)
+- **API Server**: [http://localhost:5050](http://localhost:5050)
 - **MongoDB**: `localhost:27017`
 
 ---
@@ -122,22 +125,33 @@ cp server/.env.example server/.env
 cp agent/.env.example agent/.env
 ```
 
-#### 3. Start Development Services
+Ensure `server/.env` contains your database and JWT configurations:
+```env
+PORT=5050
+MONGO_URI=mongodb://localhost:27017/eye-ai
+JWT_SECRET=your_jwt_secret_key_here
+AGENT_SHARED_TOKEN=your_secure_agent_token_here
+```
+
+#### 3. Run Development Services
 ```bash
-# Terminal 1: Start Client and Server concurrently
+# Start Client (Port 5180) and Server (Port 5050) concurrently
 npm run dev
 
-# Terminal 2: Start Endpoint Telemetry Agent
+# Start all three: Client, Server, and Endpoint Agent
+npm run all
+
+# Or start the Endpoint Agent individually (requires root/sudo for firewall isolation)
 npm run agent
 ```
 
-Access the dashboard at **[http://localhost:5180](http://localhost:5180)**.
+Access the dashboard in your browser at **[http://localhost:5180](http://localhost:5180)**.
 
 ---
 
 ## 🤖 Local AI Copilot Setup (Ollama)
 
-Eye includes native support for running **100% private, local AI models** via Ollama:
+Eye AI supports **100% offline, private AI threat intelligence** powered by Ollama:
 
 1. Install [Ollama](https://ollama.com):
    ```bash
@@ -149,7 +163,7 @@ Eye includes native support for running **100% private, local AI models** via Ol
    ```bash
    ollama pull llama3.2:latest
    ```
-3. Start the Ollama server (if not already running as a service):
+3. Start the Ollama server:
    ```bash
    ollama serve
    ```
@@ -164,16 +178,16 @@ Eye includes native support for running **100% private, local AI models** via Ol
 
 ---
 
-## 📡 Agent Pairing Flow
+## 📡 Agent Pairing & Sensor Connection
 
-1. Open the Eye Dashboard at [http://localhost:5180](http://localhost:5180).
-2. Navigate to **Agent Pairing** in the navigation sidebar.
+1. Open the Eye AI Dashboard at [http://localhost:5180](http://localhost:5180).
+2. Go to **Agent Pairing** (or **Host Activity**) in the navigation sidebar.
 3. Click **Pair this device** to generate a cryptographically signed registration token.
-4. Copy the generated token into `agent/.env`:
+4. Set the generated token in `agent/.env`:
    ```env
    AGENT_TOKEN=your_generated_token_here
    ```
-5. Start or restart the agent (`npm run agent` or `sudo systemctl restart eye-agent`).
+5. Start or restart the agent (`npm run agent` or `sudo systemctl restart eye-agent`). The live agent status indicator will illuminate green.
 
 ---
 
@@ -181,32 +195,34 @@ Eye includes native support for running **100% private, local AI models** via Ol
 
 ```
 .
-├── .github/                # GitHub Actions CI workflows & issue templates
-├── agent/                  # Endpoint telemetry agent (Linux & macOS collectors)
+├── .github/                # GitHub Actions CI workflows & templates
+├── agent/                  # Endpoint telemetry agent (Linux & macOS sensors)
 │   ├── src/collectors/     # System log, network, process & honeytoken collectors
+│   ├── src/containment/    # Real SOAR enforcement (kill_process, isolation, quarantine)
 │   ├── src/detection/      # Regex signature classifiers & brute-force trackers
 │   ├── src/correlation/    # Sliding-window incident correlation engine
 │   └── src/transport/      # Resilient Socket.IO transport client with offline queue
 ├── client/                 # React 18 + Vite SOC frontend dashboard
 │   ├── src/components/     # Modular SOC UI components (threats, incidents, charts, chat)
 │   ├── src/context/        # Auth & real-time Socket providers
+│   ├── src/services/       # Unified API client layer
 │   └── src/pages/          # Top-level view routes & investigation rooms
 ├── electron/               # Native Electron desktop wrapper and preload bridge
 ├── server/                 # Express + Socket.IO backend REST API
-│   ├── src/controllers/    # Auth, threat, incident, report & chat handlers
+│   ├── src/controllers/    # Auth, threat, incident, defense, report & chat handlers
 │   ├── src/models/         # Mongoose database schemas
 │   ├── src/services/       # AI LLM service, GeoIP service, PDF generator
 │   └── src/routes/         # Protected API route endpoints
 ├── docker-compose.yml      # Multi-container orchestration stack
 ├── start.sh                # Universal startup and bootstrap script
-└── start-linux.sh          # Linux-tailored environment manager & systemd installer
+└── start-linux.sh          # Linux environment manager & systemd installer
 ```
 
 ---
 
 ## 🛡️ Default Testing Credentials
 
-For local testing, pre-seeded administrator access:
+For local development and initial verification:
 - **Email**: `testsoc@eye.local`
 - **Password**: `Eye@123`
 
@@ -214,7 +230,7 @@ For local testing, pre-seeded administrator access:
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for branch naming standards, commit conventions, and pull request procedures.
+Contributions are welcome! Please review [CONTRIBUTING.md](CONTRIBUTING.md) for branch naming conventions, core engineering rules, and pull request guidelines.
 
 ---
 
