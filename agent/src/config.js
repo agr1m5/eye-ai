@@ -12,13 +12,13 @@ export const config = {
   userId: process.env.USER_ID || "",
   deviceAccessGranted: process.env.DEVICE_ACCESS_GRANTED === "true",
 
-  // Collector poll intervals (ms)
-  processPollIntervalMs: Number(process.env.PROCESS_POLL_INTERVAL_MS) || 5_000,
-  networkPollIntervalMs: Number(process.env.NETWORK_POLL_INTERVAL_MS) || 8_000,
+  // Collector poll intervals (ms) - 1s Real-Time Polling
+  processPollIntervalMs: Number(process.env.PROCESS_POLL_INTERVAL_MS) || 1_000,
+  networkPollIntervalMs: Number(process.env.NETWORK_POLL_INTERVAL_MS) || 1_500,
 
   // Batch & Heartbeat intervals
-  batchIntervalMs: Number(process.env.BATCH_INTERVAL_MS) || 3_000,
-  heartbeatIntervalMs: Number(process.env.HEARTBEAT_INTERVAL_MS) || 10_000,
+  batchIntervalMs: Number(process.env.BATCH_INTERVAL_MS) || 1_000,
+  heartbeatIntervalMs: Number(process.env.HEARTBEAT_INTERVAL_MS) || 5_000,
 
   // Bounded local buffer
   maxBufferedFindings: Number(process.env.MAX_BUFFERED_FINDINGS) || 500,

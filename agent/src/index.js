@@ -56,7 +56,7 @@ async function main() {
     if (event.source === 'process') {
       action = metadata.changeType ? `process.${metadata.changeType}` : 'process.active';
       actor = metadata.user || 'system';
-      entity = metadata.command || '';
+      entity = metadata.processName || metadata.command || '';
     } else if (event.source === 'network') {
       action = metadata.changeType ? `connection.${metadata.changeType}` : 'connection.active';
       actor = metadata.user || metadata.command || 'system';

@@ -258,6 +258,9 @@ export default function ActivityPage() {
     streamingRef.current = streaming;
   }, [streaming]);
 
+  // Track newly arrived event IDs for real-time visual indicator
+  const [newlyArrivedIds, setNewlyArrivedIds] = useState(() => new Set());
+
   // Fetch initial activity data
   const fetchData = useCallback(async () => {
     try {
@@ -298,6 +301,15 @@ export default function ActivityPage() {
         if (prev.some((a) => a._id === item._id)) return prev;
         return [item, ...prev].slice(0, 300);
       });
+
+      setNewlyArrivedIds((prev) => new Set([...prev, item._id]));
+      setTimeout(() => {
+        setNewlyArrivedIds((prev) => {
+          const next = new Set(prev);
+          next.delete(item._id);
+          return next;
+        });
+      }, 4000);
 
       setStats((prev) => ({
         ...prev,
@@ -422,12 +434,23 @@ export default function ActivityPage() {
 
   const attackImpact = resolveAttackImpact(selectedActivity, suggestions);
 
+  const displayedActivities = activities.filter((act) => {
+    if (sourceFilter !== 'all' && act.source !== sourceFilter) return false;
+    if (threatOnly && !act.isThreat) return false;
+    if (searchQuery) {
+      const q = searchQuery.toLowerCase().trim();
+      const text = `${act.description || ''} ${act.entity || ''} ${act.actor || ''} ${act.action || ''} ${act.ip || ''} ${act.metadata?.processName || ''} ${act.metadata?.command || ''}`.toLowerCase();
+      if (!text.includes(q)) return false;
+    }
+    return true;
+  });
+
   const streamActions = (
     <div className="flex items-center gap-2">
       {agentOnline && (
         <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mr-1">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-          Live Streaming
+          Real-Time (1.0s OS Polling)
         </span>
       )}
       <button
@@ -729,32 +752,45 @@ export default function ActivityPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/5 font-mono">
-                {activities.length === 0 ? (
+                {displayedActivities.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-slate-500 font-sans">
                       {loading ? 'Ingesting host activity stream...' : 'No activity recorded matching the current filters.'}
                     </td>
                   </tr>
                 ) : (
-                  activities.map((act) => (
+                  displayedActivities.map((act) => {
+                    const isNew = newlyArrivedIds.has(act._id);
+                    return (
                     <tr
                       key={act._id}
                       onClick={() => setSelectedActivity(act)}
-                      className="hover:bg-white/[0.02] cursor-pointer transition-colors group"
+                      className={`cursor-pointer transition-all duration-300 group ${
+                        isNew
+                          ? 'bg-cyan-500/10 border-l-2 border-l-cyan-400'
+                          : 'hover:bg-white/[0.02]'
+                      }`}
                     >
                       {/* Status / Verdict */}
                       <td className="py-3 px-4 whitespace-nowrap">
-                        {act.isThreat ? (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
-                            <AlertTriangle className="w-3 h-3" />
-                            {act.severity.toUpperCase()}
-                          </span>
-                        ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400/90 border border-emerald-500/20">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
-                            SAFE
-                          </span>
-                        )}
+                        <div className="flex items-center gap-1.5">
+                          {act.isThreat ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                              <AlertTriangle className="w-3 h-3" />
+                              {act.severity.toUpperCase()}
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium bg-emerald-500/10 text-emerald-400/90 border border-emerald-500/20">
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                              SAFE
+                            </span>
+                          )}
+                          {isNew && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-cyan-400/20 text-cyan-300 border border-cyan-400/30 animate-pulse">
+                              LIVE
+                            </span>
+                          )}
+                        </div>
                       </td>
 
                       {/* Device Impact */}
@@ -827,7 +863,8 @@ export default function ActivityPage() {
                         </div>
                       </td>
                     </tr>
-                  ))
+                  );
+                })
                 )}
               </tbody>
             </table>

@@ -263,7 +263,25 @@ export async function setConsent(req, res) {
   }
 }
 
+const PID_FILE = path.join(CONSENT_DIR, 'agent.pid');
 let spawnedAgentProcess = null;
+
+export function cleanOldAgentProcess() {
+  if (spawnedAgentProcess && !spawnedAgentProcess.killed) {
+    try { spawnedAgentProcess.kill('SIGTERM'); } catch {}
+    spawnedAgentProcess = null;
+  }
+  if (fs.existsSync(PID_FILE)) {
+    try {
+      const pidStr = fs.readFileSync(PID_FILE, 'utf8').trim();
+      const oldPid = Number(pidStr);
+      if (oldPid && !isNaN(oldPid) && oldPid !== process.pid) {
+        try { process.kill(oldPid, 'SIGTERM'); } catch {}
+      }
+    } catch {}
+    try { fs.unlinkSync(PID_FILE); } catch {}
+  }
+}
 
 /* ── POST /api/agent/toggle ─────────────────────────────────── */
 export async function toggleAgent(req, res, next) {
@@ -321,10 +339,7 @@ export async function toggleAgent(req, res, next) {
       // Spawn or restart agent process
       const agentDir = getAgentDir();
       if (agentDir) {
-        if (spawnedAgentProcess && !spawnedAgentProcess.killed) {
-          try { spawnedAgentProcess.kill('SIGTERM'); } catch {}
-          spawnedAgentProcess = null;
-        }
+        cleanOldAgentProcess();
 
         const agentEnv = {
           ...process.env,
@@ -341,6 +356,11 @@ export async function toggleAgent(req, res, next) {
           env: agentEnv,
         });
         spawnedAgentProcess.unref();
+        if (spawnedAgentProcess?.pid) {
+          try {
+            fs.writeFileSync(PID_FILE, String(spawnedAgentProcess.pid), 'utf8');
+          } catch {}
+        }
         console.log(`[AgentController] Spawned agent process with PID ${spawnedAgentProcess.pid}`);
       }
 
@@ -366,12 +386,7 @@ export async function toggleAgent(req, res, next) {
         deviceAccessGranted: 'false',
       });
 
-      if (spawnedAgentProcess && !spawnedAgentProcess.killed) {
-        try {
-          spawnedAgentProcess.kill('SIGTERM');
-          spawnedAgentProcess = null;
-        } catch {}
-      }
+      cleanOldAgentProcess();
 
       // Terminate any active socket connection for this agent
       disconnectAgent(req.user._id);

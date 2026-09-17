@@ -1,13 +1,22 @@
 import { spawn } from "child_process";
 import { config } from "../config.js";
 
+export function extractProcessName(command) {
+  if (!command) return 'unknown';
+  const appMatch = command.match(/\/([^\/]+)\.app(?:\/|$)/i);
+  if (appMatch) return appMatch[1];
+  const firstToken = command.split(/\s+/)[0];
+  const parts = firstToken.split('/');
+  return parts[parts.length - 1] || firstToken;
+}
+
 // `ps -Ao pid,user,comm` works identically on macOS and Linux (both are
 // BSD-style ps implementations for this flag set) — tested against the
 // real command in this environment; only the *meaning* of "this machine"
 // differs, not the parsing.
 function parsePsOutput(output) {
   const lines = output.trim().split("\n").slice(1); // drop the header row
-  const processes = new Map(); // pid -> { pid, user, command }
+  const processes = new Map(); // pid -> { pid, user, command, processName }
 
   for (const line of lines) {
     const match = line.trim().match(/^(\d+)\s+(\S+)\s+(.+)$/);
@@ -32,7 +41,8 @@ function parsePsOutput(output) {
       continue;
     }
 
-    processes.set(pid, { pid, user, command: cmdClean });
+    const processName = extractProcessName(cmdClean);
+    processes.set(pid, { pid, user, command: cmdClean, processName });
   }
 
   return processes;
@@ -95,11 +105,12 @@ export function startProcessCollector(onEvent, onError) {
       previousSnapshot = snapshot;
 
       for (const change of changes) {
+        const displayName = change.processName ? `${change.processName} (${change.command})` : change.command;
         onEvent({
           source: "process",
           timestamp: new Date().toISOString(),
           ip: null,
-          message: `Process ${change.changeType}: ${change.command} (pid ${change.pid}, user ${change.user})`,
+          message: `Process ${change.changeType}: ${displayName} (pid ${change.pid}, user ${change.user})`,
           raw: JSON.stringify(change),
         });
       }
