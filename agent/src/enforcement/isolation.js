@@ -436,3 +436,5 @@ export async function releaseHost() {
 
   return result;
 }
+
+export { isolateHostLinux, releaseHostLinux, isolateHostDarwin, releaseHostDarwin };

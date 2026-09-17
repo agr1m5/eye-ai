@@ -5,6 +5,7 @@
  *   /        — Browser clients authenticated via JWT
  *   /agent   — Local agent clients authenticated via agent pairing token
  */
+import mongoose from 'mongoose';
 import { Server } from 'socket.io';
 import { config } from './env.js';
 import { verifyToken } from '../utils/jwt.js';
@@ -348,7 +349,7 @@ export function initSocketServer(httpServer) {
         }
 
         let action = null;
-        if (receipt.actionId) {
+        if (receipt.actionId && mongoose.Types.ObjectId.isValid(receipt.actionId)) {
           action = await DefenseAction.findByIdAndUpdate(
             receipt.actionId,
             {

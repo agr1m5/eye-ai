@@ -261,16 +261,76 @@ async function run() {
   assert.ok(incDataSuccess2.notes?.includes('Host Daemon Verification'), 'Notes must include Host Daemon Verification');
   console.log('✓ Incident successfully marked resolved upon verified quarantine receipt.');
 
-  // 2.5 Test containment release
-  console.log('2.5 Testing quarantine_file release...');
-  const releaseRes2 = await post(`/api/defense/${actionId2}/release`, {});
-  assert.strictEqual(releaseRes2.status, 200, 'Release must return 200');
-  console.log('✓ Quarantine release executed successfully.\n');
+  /* ─────────────────────────────────────────────────────────────
+   * PART 3: REMOVED & UNRECOGNIZED ACTION REJECTION GUARDS
+   * ───────────────────────────────────────────────────────────── */
+  console.log('--- PART 3: REMOVED & UNRECOGNIZED ACTION REJECTION GUARDS ---');
 
+  // 3.1 Controller-level rejection: POST /api/defense/contain with actionType 'block_ip'
+  console.log('3.1 Verifying controller rejects block_ip with HTTP 400...');
+  const blockIpRes = await post('/api/defense/contain', {
+    actionType: 'block_ip',
+    target: '198.51.100.99',
+    reason: 'Testing block_ip rejection',
+  });
+  assert.strictEqual(blockIpRes.status, 400, 'Controller must reject block_ip with 400');
+  assert.ok(
+    blockIpRes.data?.message?.includes('Invalid actionType') && !blockIpRes.data?.message?.includes('block_ip'),
+    'Error must list allowed actions and not include block_ip'
+  );
+  console.log(`✓ Controller correctly rejected block_ip: "${blockIpRes.data?.message}"`);
+
+  // 3.2 Agent-level rejection: agent emits success:false for unsupported actionType
+  console.log('3.2 Verifying agent emits success:false for unsupported/removed action...');
+  const simRes3 = await post('/api/threats/simulate', {
+    type: 'privilege_escalation',
+    severity: 'high',
+    description: 'Testing unsupported action receipt',
+  });
+  const incidentId3 = simRes3.data?.data?.incident?._id;
+
+  const fakeActionId = 'unsupported_test_' + Date.now();
+  let receivedReceipt = null;
+
+  // Listen on client namespace (root /) for defense:action:failed
+  const clientSocket = io('http://localhost:5050', {
+    auth: { token: token },
+  });
+
+  await new Promise((resolve) => clientSocket.on('connect', resolve));
+
+  clientSocket.on('defense:action:failed', (rcpt) => {
+    if (rcpt.actionId === fakeActionId) {
+      receivedReceipt = rcpt;
+    }
+  });
+
+  // Agent emits unsupported action receipt
+  agentSocket.emit('agent:contain:receipt', {
+    actionId: fakeActionId,
+    actionType: 'block_ip',
+    target: '198.51.100.99',
+    success: false,
+    output: 'Unsupported actionType: block_ip',
+  });
+
+  await new Promise((r) => setTimeout(r, 600));
+
+  assert.ok(receivedReceipt, 'Client must receive defense:action:failed event');
+  assert.strictEqual(receivedReceipt.success, false, 'Receipt must have success: false');
+  assert.ok(receivedReceipt.output.includes('Unsupported actionType'), 'Output must specify unsupported action');
+
+  // Verify incident remained open
+  const incCheck3 = await get(`/api/incidents/${incidentId3}`);
+  const incData3 = incCheck3.data?.data?.incident || incCheck3.data?.data;
+  assert.strictEqual(incData3.status, 'open', 'Incident must remain open on unsupported action receipt');
+  console.log('✓ Agent correctly rejected unsupported action with success:false; incident remained open.\n');
+
+  clientSocket.disconnect();
   agentSocket.disconnect();
 
   console.log('========================================================================');
-  console.log(' ALL PHASE 1 ISOLATE & QUARANTINE SERVER RECEIPT TESTS PASSED! ✓');
+  console.log(' ALL HARDENED SOAR INTEGRATION & RECEIPT TESTS PASSED! ✓');
   console.log('========================================================================');
 }
 

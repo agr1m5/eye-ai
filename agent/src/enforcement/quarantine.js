@@ -24,6 +24,8 @@ const FORBIDDEN_ROOTS = [
   '/usr/bin',
   '/usr/sbin',
   '/etc',
+  '/private/etc',
+  '/private/var/root',
   '/dev',
   '/proc',
   '/sys',
