@@ -29,6 +29,11 @@ const defenseActionSchema = new mongoose.Schema(
       index:    true,
     },
 
+    filePath: {
+      type:    String,
+      default: null,
+    },
+
     status: {
       type:    String,
       enum:    ['active', 'released', 'failed'],

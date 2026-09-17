@@ -1,5 +1,7 @@
 import { io } from "socket.io-client";
 import { config } from "../config.js";
+import { isolateHost, releaseHost } from "../enforcement/isolation.js";
+import { quarantineFile, releaseFile } from "../enforcement/quarantine.js";
 
 export class AgentTransport {
   constructor({ onLog = console.log } = {}) {
@@ -101,32 +103,47 @@ export class AgentTransport {
           }
         } else if (cmd.actionType === 'block_ip') {
           const ip = String(cmd.target).trim();
-          this.blockedIps.add(ip);
+          this.blockedIps?.add(ip);
           receipt.success = true;
-          receipt.output = `Firewall block active for IP: ${ip}`;
+          receipt.output = `Firewall block active for IP: ${ip} (simulation)`;
         } else if (cmd.actionType === 'isolate_host') {
-          this.hostIsolated = true;
-          receipt.success = true;
-          receipt.output = `Host isolation active. External egress restricted.`;
+          const res = await isolateHost();
+          receipt.success = res.success;
+          receipt.output = res.output;
+          if (res.success) {
+            this.hostIsolated = true;
+          }
         } else if (cmd.actionType === 'quarantine_file') {
-          receipt.success = true;
-          receipt.output = `Target path ${cmd.target} secured in quarantine vault.`;
+          const filePath = cmd.filePath || cmd.target;
+          const res = await quarantineFile(filePath, cmd.actionId);
+          receipt.success = res.success;
+          receipt.output = res.output;
+          receipt.hash = res.hash || null;
         }
 
-        this.onLog(`[SOAR Containment] Status: ${receipt.output}`);
+        this.onLog(`[SOAR Containment] Status: ${receipt.output} (success: ${receipt.success})`);
         this.socket.emit("agent:contain:receipt", receipt);
       } catch (err) {
         receipt.output = `Containment error: ${err.message}`;
+        receipt.success = false;
+        this.onLog(`[SOAR Containment] Exception: ${err.message}`);
         this.socket.emit("agent:contain:receipt", receipt);
       }
     });
 
-    this.socket.on("agent:command:release", (cmd) => {
+    this.socket.on("agent:command:release", async (cmd) => {
       this.onLog(`[SOAR Release] Releasing: ${cmd.actionType} on ${cmd.target}`);
       if (cmd.actionType === 'block_ip') {
-        this.blockedIps?.delete(String(cmd.target).trim());
+        const ip = String(cmd.target).trim();
+        this.blockedIps?.delete(ip);
+        this.onLog(`[SOAR Release] block_ip release: unblocked ${ip} in local table.`);
       } else if (cmd.actionType === 'isolate_host') {
+        const res = await releaseHost();
         this.hostIsolated = false;
+        this.onLog(`[SOAR Release] isolate_host release result: ${res.output}`);
+      } else if (cmd.actionType === 'quarantine_file') {
+        const res = await releaseFile(cmd.actionId || cmd.target);
+        this.onLog(`[SOAR Release] quarantine_file release result: ${res.output}`);
       }
     });
   }

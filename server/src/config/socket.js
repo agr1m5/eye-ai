@@ -16,6 +16,8 @@ import DefenseAction from '../models/DefenseAction.js';
 import { correlateFinding, handleAgentIncident } from '../services/correlationService.js';
 import { dispatchCriticalAlert } from '../services/alertService.js';
 import { enrichThreat } from '../services/geoService.js';
+import { syncThreatsFromIncident } from '../services/incidentSyncService.js';
+import { cancelDispatchTimeout } from '../controllers/defenseController.js';
 
 let io = null;
 const activeAgents = new Map(); // userId -> { socketId, label, lastSeen, metrics }
@@ -338,8 +340,16 @@ export function initSocketServer(httpServer) {
     // Containment command receipt from agent
     socket.on('agent:contain:receipt', async (receipt) => {
       try {
-        if (receipt?.actionId) {
-          const action = await DefenseAction.findByIdAndUpdate(
+        if (!receipt) return;
+
+        // Clear in-flight dispatch timeout if present
+        if (receipt.actionId) {
+          cancelDispatchTimeout(receipt.actionId);
+        }
+
+        let action = null;
+        if (receipt.actionId) {
+          action = await DefenseAction.findByIdAndUpdate(
             receipt.actionId,
             {
               status: receipt.success ? 'active' : 'failed',
@@ -347,24 +357,61 @@ export function initSocketServer(httpServer) {
             },
             { new: true }
           );
+        }
 
-          if (action?.incidentId && receipt.success) {
+        // Honest verification check: ONLY resolve incident if receipt.success is TRUE
+        if (receipt.success) {
+          if (action?.incidentId) {
             const inc = await Incident.findById(action.incidentId);
             if (inc && inc.status !== 'closed') {
               inc.status = 'resolved';
               inc.resolvedAt = inc.resolvedAt || new Date();
-              const confirmMsg = `[Host Daemon Verification — ${new Date().toLocaleTimeString()}] Takedown verified on endpoint (${receipt.actionType || action.actionType} on target ${receipt.target || action.target}).`;
+
+              const actionName = (receipt.actionType || action.actionType || 'containment').replace(/_/g, ' ').toUpperCase();
+              const confirmMsg = `[Host Daemon Verification — ${new Date().toLocaleTimeString()}] Takedown verified on endpoint (${actionName} on target ${receipt.target || action.target}). Output: ${receipt.output || 'Enforced'}`;
+
               if (!inc.notes?.includes('Host Daemon Verification')) {
                 inc.notes = inc.notes ? `${inc.notes}\n\n${confirmMsg}` : confirmMsg;
-                await inc.save();
-                clientNamespace.to(clientRoom).emit('incident:updated', inc.toObject());
-                io.of('/').to(clientRoom).emit('incident:updated', inc.toObject());
               }
+
+              if (!inc.summary?.includes('Attack Taken Down')) {
+                inc.summary = `${inc.summary} (Attack Taken Down via SOAR: ${actionName})`;
+              }
+
+              await inc.save();
+              await syncThreatsFromIncident(inc._id, 'resolved', socket.userId);
+
+              clientNamespace.to(clientRoom).emit('incident:updated', inc.toObject());
+              clientNamespace.to(clientRoom).emit('incident:resolved', {
+                incidentId: inc._id.toString(),
+                actionType: receipt.actionType || action.actionType,
+                target: receipt.target || action.target,
+                resolvedAt: inc.resolvedAt,
+                message: `Attack taken down: ${actionName} verified on target ${receipt.target || action.target}`,
+                incident: inc.toObject(),
+              });
+
+              io.of('/').to(clientRoom).emit('incident:updated', inc.toObject());
+              io.of('/').to(clientRoom).emit('incident:resolved', {
+                incidentId: inc._id.toString(),
+                actionType: receipt.actionType || action.actionType,
+                target: receipt.target || action.target,
+                resolvedAt: inc.resolvedAt,
+                message: `Attack taken down: ${actionName} verified on target ${receipt.target || action.target}`,
+                incident: inc.toObject(),
+              });
             }
           }
+
+          clientNamespace.to(clientRoom).emit('defense:action:confirmed', receipt);
+          io.of('/').to(clientRoom).emit('defense:action:confirmed', receipt);
+        } else {
+          // Failure on endpoint (e.g. non-root, invalid syntax, verification mismatch)
+          // Do NOT resolve the incident. Notify client dashboard of real failure.
+          console.warn(`[Socket.IO:Agent] Containment failed on agent: ${receipt.output}`);
+          clientNamespace.to(clientRoom).emit('defense:action:failed', receipt);
+          io.of('/').to(clientRoom).emit('defense:action:failed', receipt);
         }
-        clientNamespace.to(clientRoom).emit('defense:action:confirmed', receipt);
-        io.of('/').to(clientRoom).emit('defense:action:confirmed', receipt);
       } catch (err) {
         console.error('[Socket.IO:Agent] Error updating defense action receipt:', err.message);
       }

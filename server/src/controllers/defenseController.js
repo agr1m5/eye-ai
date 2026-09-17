@@ -14,6 +14,18 @@ import { syncThreatsFromIncident } from '../services/incidentSyncService.js';
 import { createAuditEntry } from '../services/auditService.js';
 import { getIO } from '../config/socket.js';
 
+// Map of in-flight containment dispatch timeouts: actionId -> NodeJS.Timeout
+export const dispatchTimeouts = new Map();
+
+export function cancelDispatchTimeout(actionId) {
+  const idStr = String(actionId);
+  const t = dispatchTimeouts.get(idStr);
+  if (t) {
+    clearTimeout(t);
+    dispatchTimeouts.delete(idStr);
+  }
+}
+
 /* ── POST /api/defense/contain ───────────────────────────────── */
 export async function executeContainment(req, res, next) {
   try {
@@ -73,11 +85,12 @@ export async function executeContainment(req, res, next) {
       }).sort({ createdAt: -1 });
     }
 
-    // Save defense record
+    // Save defense record with status 'active' (in-flight until verified by agent receipt)
     const defenseAction = new DefenseAction({
       userId: req.user._id,
       actionType,
       target: String(target).trim(),
+      filePath: req.body.filePath || null,
       reason: reason || 'SOC containment countermeasure',
       threatId: threatId || null,
       incidentId: incident?._id || incidentId || null,
@@ -91,25 +104,42 @@ export async function executeContainment(req, res, next) {
     });
     await defenseAction.save();
 
-    let updatedIncident = null;
-    if (incident) {
-      incident.status = 'resolved';
-      incident.resolvedAt = new Date();
+    // 30-second dispatch timeout: if agent does not return a verification receipt within 30s, mark failed
+    const timeoutHandle = setTimeout(async () => {
+      try {
+        dispatchTimeouts.delete(defenseAction._id.toString());
+        const freshAction = await DefenseAction.findById(defenseAction._id);
+        if (freshAction && !freshAction.receipt?.agentExecution && freshAction.status === 'active') {
+          freshAction.status = 'failed';
+          freshAction.receipt = {
+            ...freshAction.receipt,
+            error: 'Dispatch timeout: Agent did not acknowledge receipt within 30s',
+            timedOutAt: new Date(),
+          };
+          await freshAction.save();
 
-      const takedownTimestamp = new Date().toLocaleTimeString();
-      const takedownMsg = `[SOAR Countermeasure — ${takedownTimestamp}] Attack taken down! Action: ${actionType.toUpperCase()} successfully executed against target "${target}" by ${executedBy}. Threat neutralized and contained.`;
-      incident.notes = incident.notes ? `${incident.notes}\n\n${takedownMsg}` : takedownMsg;
-
-      if (!incident.summary.includes('Attack Taken Down')) {
-        incident.summary = `${incident.summary} (Attack Taken Down via SOAR: ${actionType.replace(/_/g, ' ').toUpperCase()})`;
+          const io = getIO();
+          if (io) {
+            const clientRoom = `user:${req.user._id}`;
+            const failPayload = {
+              actionId: freshAction._id.toString(),
+              actionType: freshAction.actionType,
+              target: freshAction.target,
+              success: false,
+              output: 'Containment failed: Endpoint agent timed out (30s elapsed without receipt).',
+            };
+            io.of('/').to(clientRoom).emit('defense:action:failed', failPayload);
+            io.of('/client').to(clientRoom).emit('defense:action:failed', failPayload);
+          }
+        }
+      } catch (timeoutErr) {
+        console.error('[DefenseController] Timeout handler error:', timeoutErr.message);
       }
+    }, 30000);
 
-      await incident.save();
-      await syncThreatsFromIncident(incident._id, 'resolved', req.user._id);
-      updatedIncident = incident.toObject();
-    }
+    dispatchTimeouts.set(defenseAction._id.toString(), timeoutHandle);
 
-    // Dispatch command to agent namespace over Socket.IO
+    // Dispatch command to agent namespace over Socket.IO (incident is NOT marked resolved yet)
     try {
       const io = getIO();
       if (io) {
@@ -117,36 +147,17 @@ export async function executeContainment(req, res, next) {
           actionId: defenseAction._id,
           actionType,
           target: defenseAction.target,
+          filePath: req.body.filePath || null,
           reason: defenseAction.reason,
           userId: req.user._id.toString(),
         });
 
         const clientRoom = `user:${req.user._id}`;
-        // Broadcast to client dashboard room on default namespace
+        // Broadcast dispatch event to client dashboard room
         io.of('/').to(clientRoom).emit('defense:action:executed', defenseAction.toObject());
-
-        if (updatedIncident) {
-          io.of('/').to(clientRoom).emit('incident:updated', updatedIncident);
-          io.of('/').to(clientRoom).emit('incident:resolved', {
-            incidentId: updatedIncident._id.toString(),
-            actionType,
-            target: defenseAction.target,
-            resolvedAt: updatedIncident.resolvedAt,
-            message: `Attack taken down: ${actionType.replace(/_/g, ' ').toUpperCase()} on target ${defenseAction.target}`,
-            incident: updatedIncident,
-          });
-          try {
-            io.of('/client').to(clientRoom).emit('incident:updated', updatedIncident);
-            io.of('/client').to(clientRoom).emit('incident:resolved', {
-              incidentId: updatedIncident._id.toString(),
-              actionType,
-              target: defenseAction.target,
-              resolvedAt: updatedIncident.resolvedAt,
-              message: `Attack taken down: ${actionType.replace(/_/g, ' ').toUpperCase()} on target ${defenseAction.target}`,
-              incident: updatedIncident,
-            });
-          } catch (_) {}
-        }
+        try {
+          io.of('/client').to(clientRoom).emit('defense:action:executed', defenseAction.toObject());
+        } catch (_) {}
       }
     } catch (socketErr) {
       console.warn('[DefenseController] Socket dispatch warning:', socketErr.message);
