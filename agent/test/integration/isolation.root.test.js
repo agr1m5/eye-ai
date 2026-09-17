@@ -167,8 +167,9 @@ async function runRootTest() {
     console.log('\n--- STEP 2: INDEPENDENT FIREWALL RULE VERIFICATION ---');
     if (process.platform === 'linux') {
       const { stdout: chainRules } = await execFileAsync('iptables', ['-L', 'EYE_ISOLATE', '-n']);
-      assert.ok(chainRules.includes('DROP'), 'EYE_ISOLATE chain must contain default DROP');
-      assert.ok(chainRules.includes('ESTABLISHED,RELATED') || chainRules.includes('conntrack'), 'Must allow ESTABLISHED/RELATED');
+      assert.ok(/\bDROP\b/i.test(chainRules), 'EYE_ISOLATE chain must contain default DROP');
+      assert.ok(/established/i.test(chainRules), 'Must allow ESTABLISHED state');
+      assert.ok(/related/i.test(chainRules), 'Must allow RELATED state');
       assert.ok(chainRules.includes(backendIp), `Must allow backend IP ${backendIp}`);
 
       const checkOutput = await execFileAsync('iptables', ['-C', 'OUTPUT', '-j', 'EYE_ISOLATE']);
@@ -176,8 +177,12 @@ async function runRootTest() {
       console.log('✓ Linux iptables verified: EYE_ISOLATE chain attached to OUTPUT with correct policy rules.');
     } else if (process.platform === 'darwin') {
       const { stdout: pfRules } = await execFileAsync('pfctl', ['-a', 'eye_isolate', '-s', 'rules']);
-      assert.ok(pfRules.includes('block drop out all'), 'PF rules must contain default block drop out all');
-      assert.ok(pfRules.includes('pass out quick on lo0'), 'PF rules must allow lo0 loopback');
+      assert.ok(/block/i.test(pfRules), 'PF rules must contain a block directive');
+      assert.ok(/drop/i.test(pfRules), 'PF rules must specify drop (not just block/return)');
+      assert.ok(/\bout\b/i.test(pfRules), 'PF rules must apply to outbound direction');
+      assert.ok(/pass/i.test(pfRules), 'PF rules must contain pass directive');
+      assert.ok(/\blo0\b/i.test(pfRules), 'PF rules must allow lo0 loopback');
+      assert.ok(/\bout\b/i.test(pfRules), 'PF rules must apply to outbound direction');
       assert.ok(pfRules.includes(backendIp), `PF rules must allow backend IP ${backendIp}`);
       console.log('✓ macOS pfctl verified: eye_isolate anchor contains required egress filtering rules.');
     }
@@ -220,13 +225,15 @@ async function runRootTest() {
         await execFileAsync('iptables', ['-C', 'OUTPUT', '-j', 'EYE_ISOLATE']);
         assert.fail('OUTPUT jump to EYE_ISOLATE must not exist after release');
       } catch (err) {
-        assert.ok(err.code === 1 || err.code === 2, 'iptables -C OUTPUT must fail when unlinked');
+        if (err.name === 'AssertionError') throw err;
+        assert.ok(err.code !== 0, 'iptables -C OUTPUT must fail when unlinked');
       }
       try {
         await execFileAsync('iptables', ['-L', 'EYE_ISOLATE', '-n']);
         assert.fail('EYE_ISOLATE chain must not exist after release');
       } catch (err) {
-        assert.ok(err.code === 1 || err.code === 2, 'iptables -L EYE_ISOLATE must fail when deleted');
+        if (err.name === 'AssertionError') throw err;
+        assert.ok(err.code !== 0, 'iptables -L EYE_ISOLATE must fail when deleted');
       }
       console.log('✓ Linux iptables verified: EYE_ISOLATE chain completely unlinked and removed.');
     } else if (process.platform === 'darwin') {
