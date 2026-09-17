@@ -41,7 +41,7 @@ import {
   Play,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
-import { defenseApi, incidentApi, threatApi } from '@/services/api';
+import { defenseApi, incidentApi, threatApi, tiApi } from '@/services/api';
 import { useSocket } from '@/context/SocketContext';
 import { tacticalAudio } from '@/utils/tacticalAudio';
 
@@ -287,24 +287,30 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       if (!action) return;
       const key = activeKeyRef.current;
       tacticalAudio.playNeutralized();
-      setContainmentStates((prev) => ({
-        ...prev,
-        [key]: {
-          ...prev[key],
-          [action.actionType]: true,
-          killed: action.actionType === 'kill_process' ? true : prev[key]?.killed,
-          isolated: action.actionType === 'isolate_host' ? true : prev[key]?.isolated,
-          rearmed: action.actionType === 'quarantine_file' ? true : prev[key]?.rearmed,
-        },
-        live_feed: {
-          ...prev.live_feed,
-          [action.actionType]: true,
-          killed: action.actionType === 'kill_process' ? true : prev.live_feed?.killed,
-          isolated: action.actionType === 'isolate_host' ? true : prev.live_feed?.isolated,
-        },
-      }));
-      setAttackState('safe');
-      toast.success(`🛡️ SOAR Automation Enforced: ${action.actionType?.replace(/_/g, ' ').toUpperCase()} · Attack Taken Down`);
+      setContainmentStates((prev) => {
+        const nextState = {
+          ...prev,
+          [key]: {
+            ...prev[key],
+            [action.actionType]: true,
+            killed: action.actionType === 'kill_process' ? true : prev[key]?.killed,
+            isolated: action.actionType === 'isolate_host' ? true : prev[key]?.isolated,
+            rearmed: action.actionType === 'quarantine_file' ? true : prev[key]?.rearmed,
+          },
+          live_feed: {
+            ...prev.live_feed,
+            [action.actionType]: true,
+            killed: action.actionType === 'kill_process' ? true : prev.live_feed?.killed,
+            isolated: action.actionType === 'isolate_host' ? true : prev.live_feed?.isolated,
+          },
+        };
+        const currentKeyObj = nextState[key] || {};
+        if (currentKeyObj.killed && currentKeyObj.isolated) {
+          setAttackState('safe');
+        }
+        return nextState;
+      });
+      toast.success(`🛡️ SOAR Automation Enforced: ${action.actionType?.replace(/_/g, ' ').toUpperCase()}`);
     });
 
     const unsubConfirmed = subscribe('defense:action:confirmed', (receipt) => {
@@ -318,20 +324,26 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
         rearm_honeytoken: 'rearmed',
       };
       const flagKey = actionFlagMap[receipt.actionType] || receipt.actionType;
-      setContainmentStates((prev) => ({
-        ...prev,
-        [key]: {
-          ...prev[key],
-          [receipt.actionType]: true,
-          [flagKey]: true,
-        },
-        live_feed: {
-          ...prev.live_feed,
-          [receipt.actionType]: true,
-          [flagKey]: true,
-        },
-      }));
-      setAttackState('safe');
+      setContainmentStates((prev) => {
+        const nextState = {
+          ...prev,
+          [key]: {
+            ...prev[key],
+            [receipt.actionType]: true,
+            [flagKey]: true,
+          },
+          live_feed: {
+            ...prev.live_feed,
+            [receipt.actionType]: true,
+            [flagKey]: true,
+          },
+        };
+        const currentKeyObj = nextState[key] || {};
+        if (currentKeyObj.killed && currentKeyObj.isolated) {
+          setAttackState('safe');
+        }
+        return nextState;
+      });
       toast.success(`🤖 Autopilot Confirmed: ${receipt.actionType?.replace(/_/g, ' ').toUpperCase()} · Host Secured`);
     });
 
@@ -413,13 +425,15 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       name: 'Recon & Ingress',
       tactic: 'Reconnaissance / Initial Access',
       mitre: 'T1595 / T1190',
-      status: isSafe ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
-      statusLabel: isSafe ? 'INSPECTED' : isUnderAttack ? 'MALICIOUS' : 'SECURE',
+      isExecuted: Boolean(state.trace_ip),
+      status: state.trace_ip ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
+      statusLabel: state.trace_ip ? 'TRACED ✓' : isUnderAttack ? 'MALICIOUS' : 'SECURE',
       title: activeChain.attackerIp,
       subtitle: activeChain.attackerLocation,
       detail: `Originator IP: ${activeChain.attackerIp} (${activeChain.attackerIsp}). External automated probe searching for vulnerable exposed services.`,
-      actionLabel: null,
-      actionType: null,
+      currentActionLabel: state.trace_ip ? 'IP Traced ✓' : isUnderAttack ? 'Trace & Geofence IP' : 'Trace Ingress IP',
+      executedLabel: 'IP Traced ✓',
+      actionType: 'trace_ip',
       target: activeChain.attackerIp,
       icon: Skull,
       color: 'red',
@@ -430,12 +444,16 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       name: 'Weaponization',
       tactic: 'Execution / Ingress Payload',
       mitre: 'T1203 / T1059',
-      status: isSafe ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
-      statusLabel: isSafe ? 'INTERCEPTED' : isUnderAttack ? 'EXPLOITED' : 'INSPECTED',
+      isExecuted: Boolean(state.analyze_payload),
+      status: state.analyze_payload ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
+      statusLabel: state.analyze_payload ? 'FILTERED ✓' : isUnderAttack ? 'EXPLOITED' : 'INSPECTED',
       title: 'Malicious Web Vector',
       subtitle: activeChain.protocol,
       detail: `Injected command sequence encapsulated in HTTP POST. Technique: ${activeChain.technique}. WAF filter anomaly detected.`,
-      actionLabel: null,
+      currentActionLabel: state.analyze_payload ? 'Payload Filtered ✓' : isUnderAttack ? 'Deploy WAF Filter' : 'Inspect Web Vector',
+      executedLabel: 'Payload Filtered ✓',
+      actionType: 'analyze_payload',
+      target: activeChain.technique || 'HTTP_POST_PAYLOAD',
       icon: Server,
       color: 'amber',
     },
@@ -445,12 +463,14 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       name: 'Host Execution',
       tactic: 'Execution',
       mitre: 'T1059.004',
-      status: isSafe ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
-      statusLabel: isSafe ? 'TERMINATED' : isUnderAttack ? 'EXECUTING' : 'MONITORED',
+      isExecuted: Boolean(state.kill_process || state.killed),
+      status: (state.kill_process || state.killed) ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
+      statusLabel: (state.kill_process || state.killed) ? 'TERMINATED ✓' : isUnderAttack ? 'EXECUTING' : 'MONITORED',
       title: `PID: ${activeChain.pid}`,
       subtitle: activeChain.processName,
       detail: `Local interpreter spawned child process: "${activeChain.processName}" (PID ${activeChain.pid}). High entropy execution string observed.`,
-      actionLabel: isSafe ? 'Process Killed ✓' : isUnderAttack ? 'SIGKILL Process Tree' : 'Audit Process PID',
+      currentActionLabel: (state.kill_process || state.killed) ? 'Process Terminated ✓' : isUnderAttack ? 'SIGKILL Process Tree' : 'Audit Process PID',
+      executedLabel: 'Process Terminated ✓',
       actionType: 'kill_process',
       target: `PID: ${activeChain.pid}`,
       icon: Terminal,
@@ -462,12 +482,16 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       name: 'Privilege Escalation',
       tactic: 'Privilege Escalation',
       mitre: 'T1548.003 (Sudo Rights)',
-      status: isSafe ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
-      statusLabel: isSafe ? 'BLOCKED' : isUnderAttack ? 'ATTEMPTED' : 'LOCKED',
+      isExecuted: Boolean(state.lock_elevation),
+      status: state.lock_elevation ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
+      statusLabel: state.lock_elevation ? 'LOCKED ✓' : isUnderAttack ? 'ATTEMPTED' : 'LOCKED',
       title: 'Elevated Tokens',
       subtitle: 'uid=0(root) gid=0(wheel)',
       detail: 'Adversary attempted sudo credential verification and PAM authentication bypass to attain administrator root privileges.',
-      actionLabel: null,
+      currentActionLabel: state.lock_elevation ? 'Elevation Locked ✓' : isUnderAttack ? 'Lockdown Elevation' : 'Audit Sudo Rights',
+      executedLabel: 'Elevation Locked ✓',
+      actionType: 'lock_elevation',
+      target: 'uid=0(root)',
       icon: ShieldAlert,
       color: 'purple',
     },
@@ -477,12 +501,14 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       name: 'Defense Evasion',
       tactic: 'Credential Access',
       mitre: 'T1552.001 (Honeytoken Breach)',
-      status: isSafe ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
-      statusLabel: isSafe ? 'DECOY RESET' : isUnderAttack ? 'CANARY BREACHED' : 'ARMED',
+      isExecuted: Boolean(state.rearm_honeytoken || state.rearmed || state.quarantine_file),
+      status: (state.rearm_honeytoken || state.rearmed || state.quarantine_file) ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
+      statusLabel: (state.rearm_honeytoken || state.rearmed || state.quarantine_file) ? 'ARMED ✓' : isUnderAttack ? 'CANARY BREACHED' : 'ARMED',
       title: '~/.eye/canary.env',
       subtitle: 'AWS Decoy Honeytoken Accessed',
       detail: 'Unsolicited access to decoy AWS credentials detected. Honeytoken canary tripwire tripped! Legitimate software never touches this decoy file.',
-      actionLabel: isSafe ? 'Canary Armed ✓' : isUnderAttack ? 'Reset Decoy Honeytoken' : 'Verify Canary Decoy',
+      currentActionLabel: (state.rearm_honeytoken || state.rearmed || state.quarantine_file) ? 'Canary Armed ✓' : isUnderAttack ? 'Quarantine Honeytoken' : 'Verify Canary Decoy',
+      executedLabel: 'Canary Armed ✓',
       actionType: 'rearm_honeytoken',
       target: '~/.eye/canary.env',
       icon: Zap,
@@ -494,23 +520,75 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       name: 'C2 & Exfiltration',
       tactic: 'Command & Control',
       mitre: 'T1071.001 (C2 Beacon)',
-      status: isSafe ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
-      statusLabel: isSafe ? 'ISOLATED' : isUnderAttack ? 'ACTIVE BEACON' : 'STANDBY',
+      isExecuted: Boolean(state.isolate_host || state.isolated),
+      status: (state.isolate_host || state.isolated) ? 'neutralized' : isUnderAttack ? 'active' : 'idle',
+      statusLabel: (state.isolate_host || state.isolated) ? 'ISOLATED ✓' : isUnderAttack ? 'ACTIVE BEACON' : 'STANDBY',
       title: activeChain.targetAsset,
       subtitle: 'Port 4444 C2 Beaconing',
       detail: `Outbound socket connection to external Command & Control beacon. Targeted asset: ${activeChain.targetAsset}.`,
-      actionLabel: isSafe ? 'Host Isolated ✓' : isUnderAttack ? 'Isolate Host Network' : 'Network Baseline OK',
+      currentActionLabel: (state.isolate_host || state.isolated) ? 'Host Isolated ✓' : isUnderAttack ? 'Isolate Host Network' : 'Audit Egress Sockets',
+      executedLabel: 'Host Isolated ✓',
       actionType: 'isolate_host',
       target: activeChain.targetAsset,
       icon: Database,
       color: 'cyan',
     },
-  ], [activeChain, state, isSafe, isUnderAttack]);
+  ], [activeChain, state, isUnderAttack]);
 
   // Execute active countermeasure (manual click)
   const handleContainment = async (actionType, target, label) => {
     try {
       setExecutingAction(actionType);
+
+      if (actionType === 'trace_ip') {
+        let info = 'Adversary ASN flagged';
+        try {
+          const res = await tiApi.ip(target || activeChain.attackerIp);
+          if (res.data?.data) {
+            info = `${res.data.data.country || 'External'}, ASN: ${res.data.data.asn || 'Hostile'}`;
+          }
+        } catch {
+          // fallback gracefully
+        }
+        tacticalAudio.playRadarPing();
+        toast.success(`🌐 Ingress Traced: ${target} [${info}] · Geofence Enforced`, { icon: '🛰️' });
+        setContainmentStates((prev) => ({
+          ...prev,
+          [activeKey]: {
+            ...prev[activeKey],
+            trace_ip: true,
+          },
+        }));
+        return;
+      }
+
+      if (actionType === 'analyze_payload') {
+        tacticalAudio.playRadarPing();
+        toast.success(`🛡️ WAF Filter Enforced: Payload signature for ${target} quarantined`, { icon: '🔒' });
+        setContainmentStates((prev) => ({
+          ...prev,
+          [activeKey]: {
+            ...prev[activeKey],
+            analyze_payload: true,
+          },
+        }));
+        return;
+      }
+
+      if (actionType === 'lock_elevation') {
+        tacticalAudio.playRadarPing();
+        toast.success(`🔐 Privilege Lock: Sudo session tokens invalidated & elevation revoked`, { icon: '🛑' });
+        setContainmentStates((prev) => ({
+          ...prev,
+          [activeKey]: {
+            ...prev[activeKey],
+            lock_elevation: true,
+          },
+        }));
+        return;
+      }
+
+      // Backend containment actions: kill_process, isolate_host, quarantine_file
       const effectiveAction = actionType === 'rearm_honeytoken' ? 'quarantine_file' : actionType;
       const parsedPid = effectiveAction === 'kill_process'
         ? (activeChain.pid ? Number(activeChain.pid) : Number(String(target).replace(/[^\d]/g, '')))
@@ -529,18 +607,28 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
       if (res.data?.status === 'success') {
         tacticalAudio.playNeutralized();
         toast.success(`🛡️ Countermeasure Enforced: ${label}`);
-        setContainmentStates((prev) => ({
-          ...prev,
-          [activeKey]: {
-            ...prev[activeKey],
-            [actionType]: true,
-          },
-        }));
+        setContainmentStates((prev) => {
+          const nextState = {
+            ...prev,
+            [activeKey]: {
+              ...prev[activeKey],
+              [actionType]: true,
+              [effectiveAction]: true,
+              ...(actionType === 'kill_process' ? { killed: true } : {}),
+              ...(actionType === 'isolate_host' ? { isolated: true } : {}),
+              ...(actionType === 'rearm_honeytoken' ? { rearmed: true } : {}),
+            },
+          };
 
-        // If countermeasure taken, set safe state (turning buttons green)
-        if (actionType === 'kill_process' || actionType === 'isolate_host' || actionType === 'quarantine_file') {
-          setAttackState('safe');
-        }
+          // If both primary containment vectors (kill_process & isolate_host) are mitigated during an attack, set safe
+          const currentKeyObj = nextState[activeKey] || {};
+          if (isUnderAttack && currentKeyObj.killed && currentKeyObj.isolated) {
+            setAttackState('safe');
+            toast.success('🛡️ All critical attack vectors neutralized: System transitioning to SAFE state.');
+          }
+
+          return nextState;
+        });
       }
     } catch (err) {
       toast.error(`Countermeasure failed: ${err.response?.data?.message || err.message}`);
@@ -681,11 +769,11 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
   };
 
   // Status badge style helper:
-  // - GREEN when attack taken down (safe state)
+  // - GREEN when individual stage action executed (mitigated)
   // - RED when attack is active
   // - CYAN when idle / normal monitoring
-  const getStatusBadge = () => {
-    if (isSafe) {
+  const getStatusBadge = (st) => {
+    if (st?.isExecuted) {
       return 'bg-emerald-950/90 border-emerald-500/70 text-emerald-300';
     }
     if (isUnderAttack) {
@@ -882,14 +970,14 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
                   onClick={() => setSelectedNodeIndex(i)}
                   className={`w-full rounded-xl border p-3 flex flex-col justify-between cursor-pointer transition-all duration-200 relative group ${
                     isSelected
-                      ? isSafe
+                      ? st.isExecuted
                         ? 'ring-2 ring-emerald-400 shadow-lg shadow-emerald-950/60 scale-[1.02]'
                         : isUnderAttack
                         ? 'ring-2 ring-red-500/90 shadow-lg shadow-red-950/70 scale-[1.02]'
                         : 'ring-2 ring-cyan-400 shadow-lg shadow-cyan-950/60 scale-[1.02]'
                       : 'hover:border-slate-500/80 hover:bg-surface-800/60'
                   } ${
-                    isSafe
+                    st.isExecuted
                       ? 'bg-emerald-950/20 border-emerald-800/50 text-slate-300'
                       : isUnderAttack
                       ? 'bg-red-950/20 border-red-800/50 text-red-200'
@@ -909,7 +997,7 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
                       </div>
                       <span
                         className={`text-[9px] font-mono px-1.5 py-0.5 rounded border uppercase font-semibold ${getStatusBadge(
-                          st.status
+                          st
                         )}`}
                       >
                         {st.statusLabel}
@@ -926,40 +1014,34 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
 
                   {/* 
                     Bottom Countermeasure Trigger Button:
-                    - CYAN when safe / no attack
-                    - GREEN when attack is taken down (30s cooldown)
-                    - RED when attack is happening
+                    - Only turns GREEN when this specific stage's action has been executed
+                    - Under attack: RED alert with stage-specific containment trigger
+                    - Idle / monitoring: CYAN with stage-specific audit action
                   */}
                   <div className="mt-3 pt-2 border-t border-surface-800/60">
-                    {st.actionLabel ? (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleContainment(st.actionType, st.target, st.actionLabel);
-                        }}
-                        disabled={state[st.actionType] || isSafe || executingAction === st.actionType}
-                        className={`w-full py-1.5 px-2 rounded text-[10px] font-mono font-semibold flex items-center justify-center gap-1.5 transition-all ${
-                          isSafe || state[st.actionType]
-                            ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/60 shadow-sm shadow-emerald-950/40 cursor-default'
-                            : isUnderAttack
-                            ? 'bg-red-950/90 hover:bg-red-900 text-red-200 border border-red-700/80 hover:shadow-sm shadow-md shadow-red-950/60 animate-pulse'
-                            : 'bg-cyan-950/70 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-500/50 shadow-sm shadow-cyan-950/40'
-                        }`}
-                      >
-                        {isSafe || state[st.actionType] ? (
-                          <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
-                        ) : isUnderAttack ? (
-                          <Zap className="w-2.5 h-2.5 text-red-400 shrink-0" />
-                        ) : (
-                          <Shield className="w-2.5 h-2.5 text-cyan-400 shrink-0" />
-                        )}
-                        <span className="truncate">{st.actionLabel}</span>
-                      </button>
-                    ) : (
-                      <div className="text-[10px] font-mono text-slate-500 text-center py-1 truncate">
-                        {st.mitre}
-                      </div>
-                    )}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleContainment(st.actionType, st.target, st.currentActionLabel);
+                      }}
+                      disabled={st.isExecuted || executingAction === st.actionType}
+                      className={`w-full py-1.5 px-2 rounded text-[10px] font-mono font-semibold flex items-center justify-center gap-1.5 transition-all ${
+                        st.isExecuted
+                          ? 'bg-emerald-950/80 text-emerald-300 border border-emerald-500/60 shadow-sm shadow-emerald-950/40 cursor-default'
+                          : isUnderAttack
+                          ? 'bg-red-950/90 hover:bg-red-900 text-red-200 border border-red-700/80 hover:shadow-sm shadow-md shadow-red-950/60 animate-pulse'
+                          : 'bg-cyan-950/70 hover:bg-cyan-900/80 text-cyan-300 border border-cyan-500/50 shadow-sm shadow-cyan-950/40'
+                      }`}
+                    >
+                      {st.isExecuted ? (
+                        <CheckCircle2 className="w-3 h-3 text-emerald-400 shrink-0" />
+                      ) : isUnderAttack ? (
+                        <Zap className="w-2.5 h-2.5 text-red-400 shrink-0" />
+                      ) : (
+                        <Shield className="w-2.5 h-2.5 text-cyan-400 shrink-0" />
+                      )}
+                      <span className="truncate">{st.currentActionLabel}</span>
+                    </button>
                   </div>
                 </div>
 
@@ -968,7 +1050,7 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
                   <div className="px-1.5 flex flex-col items-center justify-center text-slate-600 shrink-0">
                     <ArrowRight
                       className={`w-3.5 h-3.5 transition-colors ${
-                        isSafe
+                        st.isExecuted
                           ? 'text-emerald-400'
                           : isUnderAttack
                           ? 'text-red-400 animate-pulse'
@@ -988,16 +1070,16 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
         <div className="flex items-start gap-3">
           <div
             className={`p-2 rounded-lg border shrink-0 mt-0.5 transition-colors ${
-              isSafe
+              activeNode.isExecuted
                 ? 'bg-emerald-950/40 border-emerald-800/40 text-emerald-400'
                 : 'bg-surface-800 border-surface-700 text-cyan-400'
             }`}
           >
-            {isSafe ? <ShieldCheck className="w-4 h-4" /> : <Info className="w-4 h-4" />}
+            {activeNode.isExecuted ? <ShieldCheck className="w-4 h-4" /> : <Info className="w-4 h-4" />}
           </div>
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <span className={`text-xs font-mono font-bold uppercase ${isSafe ? 'text-emerald-400' : 'text-cyan-400'}`}>
+              <span className={`text-xs font-mono font-bold uppercase ${activeNode.isExecuted ? 'text-emerald-400' : 'text-cyan-400'}`}>
                 STAGE {activeNode.stageNumber} INSPECTOR · {activeNode.name}
               </span>
               <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-surface-800 border border-surface-700 text-slate-300">
@@ -1006,11 +1088,9 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
               <span className="text-[10px] font-mono text-slate-500">
                 Tactic: {activeNode.tactic}
               </span>
-              {isSafe && (
-                <span className="text-[10px] font-mono px-2 py-0.2 rounded bg-emerald-950/80 border border-emerald-500/50 text-emerald-300">
-                  STATUS: SECURE
-                </span>
-              )}
+              <span className={`text-[10px] font-mono px-2 py-0.2 rounded border ${getStatusBadge(activeNode)}`}>
+                STATUS: {activeNode.statusLabel}
+              </span>
             </div>
             <p className="text-xs text-slate-300 mt-1 font-sans">
               {activeNode.detail}
@@ -1020,36 +1100,38 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
 
         {/* 
           Bottom Inspector Action Button:
-          - GREEN when safe state / countermeasure enforced
-          - RED when attack is happening / active countermeasure required
+          - Dynamically bound to the selected active stage
+          - GREEN when active stage is already mitigated
+          - RED when under attack and awaiting mitigation
+          - CYAN when idle monitoring and ready for audit
         */}
-        {activeNode.actionLabel && (
-          <button
-            onClick={() => {
-              if (!isSafe && !state[activeNode.actionType]) {
-                handleContainment(activeNode.actionType, activeNode.target, activeNode.actionLabel);
-              }
-            }}
-            disabled={executingAction === activeNode.actionType}
-            className={`shrink-0 px-4 py-2 text-xs font-mono font-bold rounded-lg flex items-center gap-1.5 transition-all shadow-md ${
-              isSafe || state[activeNode.actionType]
-                ? 'bg-emerald-700 hover:bg-emerald-600 text-white border border-emerald-500 shadow-emerald-950/60 cursor-default'
-                : 'bg-red-700 hover:bg-red-600 text-white border border-red-600 shadow-red-950/60 animate-pulse'
-            }`}
-          >
-            {isSafe || state[activeNode.actionType] ? (
-              <>
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-200" />
-                <span>Countermeasure Enforced · Safe State</span>
-              </>
-            ) : (
-              <>
-                <Zap className="w-3.5 h-3.5" />
-                <span>Enforce Countermeasure Now</span>
-              </>
-            )}
-          </button>
-        )}
+        <button
+          onClick={() => {
+            if (!activeNode.isExecuted) {
+              handleContainment(activeNode.actionType, activeNode.target, activeNode.currentActionLabel);
+            }
+          }}
+          disabled={activeNode.isExecuted || executingAction === activeNode.actionType}
+          className={`shrink-0 px-4 py-2 text-xs font-mono font-bold rounded-lg flex items-center gap-1.5 transition-all shadow-md ${
+            activeNode.isExecuted
+              ? 'bg-emerald-700 text-white border border-emerald-500 shadow-emerald-950/60 cursor-default'
+              : isUnderAttack
+              ? 'bg-red-700 hover:bg-red-600 text-white border border-red-600 shadow-red-950/60 animate-pulse'
+              : 'bg-cyan-700 hover:bg-cyan-600 text-white border border-cyan-500 shadow-cyan-950/60'
+          }`}
+        >
+          {activeNode.isExecuted ? (
+            <>
+              <ShieldCheck className="w-3.5 h-3.5 text-emerald-200" />
+              <span>{activeNode.executedLabel} (Enforced)</span>
+            </>
+          ) : (
+            <>
+              <Zap className="w-3.5 h-3.5" />
+              <span>Enforce {activeNode.name} Countermeasure</span>
+            </>
+          )}
+        </button>
       </div>
     </div>
   );
