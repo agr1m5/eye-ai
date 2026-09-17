@@ -55,6 +55,20 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// Root endpoint — redirect browser clients to the frontend dashboard
+app.get('/', (req, res) => {
+  if (req.accepts('html')) {
+    return res.redirect('http://localhost:5180');
+  }
+  res.json({
+    status: 'ok',
+    service: 'Eye Live SOC Backend',
+    dashboard: 'http://localhost:5180',
+    health: '/api/health',
+  });
+});
+
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/threats', threatRoutes);

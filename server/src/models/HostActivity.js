@@ -21,7 +21,7 @@ const hostActivitySchema = new mongoose.Schema(
     // Source domain of the activity
     source: {
       type:     String,
-      enum:     ['process', 'network', 'log', 'shell'],
+      enum:     ['process', 'network', 'log', 'shell', 'honeytoken', 'canary', 'system'],
       required: true,
       index:    true,
     },
