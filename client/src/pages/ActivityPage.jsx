@@ -422,8 +422,59 @@ export default function ActivityPage() {
 
   const attackImpact = resolveAttackImpact(selectedActivity, suggestions);
 
+  const streamActions = (
+    <div className="flex items-center gap-2">
+      {agentOnline && (
+        <span className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 mr-1">
+          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+          Live Streaming
+        </span>
+      )}
+      <button
+        onClick={() => setStreaming((prev) => !prev)}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
+          streaming
+            ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
+            : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
+        }`}
+      >
+        {streaming ? (
+          <>
+            <Pause className="w-3.5 h-3.5" />
+            <span>Pause Stream</span>
+          </>
+        ) : (
+          <>
+            <Play className="w-3.5 h-3.5" />
+            <span>Resume Stream</span>
+          </>
+        )}
+      </button>
+
+      <button
+        onClick={fetchData}
+        title="Refresh telemetry"
+        className="p-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-slate-400 hover:text-slate-200 border border-white/5 transition-all"
+      >
+        <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
+      </button>
+
+      <button
+        onClick={handleClear}
+        title="Clear activity log"
+        className="p-1.5 rounded-lg bg-surface-800 hover:bg-red-500/10 text-slate-400 hover:text-red-400 border border-white/5 transition-all"
+      >
+        <Trash2 className="w-3.5 h-3.5" />
+      </button>
+    </div>
+  );
+
   return (
-    <PageWrapper title="Host Activity">
+    <PageWrapper
+      title="Host Activity Monitor"
+      subtitle="Real-time audit of every process executed, network connection established, and system event on this endpoint"
+      actions={consentGranted !== false ? streamActions : null}
+    >
       <div className="p-6 space-y-6 max-w-7xl mx-auto">
 
         {/* ── Consent Gate ─────────────────────────────────────── */}
@@ -477,68 +528,7 @@ export default function ActivityPage() {
         {/* ── Main content — only shown when consent is granted ── */}
         {consentGranted !== false && (
           <>
-
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-lg bg-accent-400/10 border border-accent-400/20">
-                <Activity className="w-5 h-5 text-accent-400" />
-              </div>
-              <h1 className="text-xl font-bold text-slate-100 tracking-tight">Host Activity Monitor</h1>
-              {agentOnline && (
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Live Streaming
-                </span>
-              )}
-            </div>
-            <p className="text-xs text-slate-400 mt-1">
-              Real-time audit of every process executed, network connection established, and system event on this endpoint.
-            </p>
-          </div>
-
-          {/* Stream Controls */}
-          <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => setStreaming((prev) => !prev)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all border ${
-                streaming
-                  ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20'
-                  : 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20'
-              }`}
-            >
-              {streaming ? (
-                <>
-                  <Pause className="w-3.5 h-3.5" />
-                  Pause Stream
-                </>
-              ) : (
-                <>
-                  <Play className="w-3.5 h-3.5" />
-                  Resume Stream
-                </>
-              )}
-            </button>
-
-            <button
-              onClick={fetchData}
-              title="Refresh telemetry"
-              className="p-1.5 rounded-lg bg-surface-800 hover:bg-surface-700 text-slate-400 hover:text-slate-200 border border-white/5 transition-all"
-            >
-              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
-            </button>
-
-            <button
-              onClick={handleClear}
-              title="Clear activity log"
-              className="p-1.5 rounded-lg bg-surface-800 hover:bg-red-500/10 text-slate-400 hover:text-red-400 border border-white/5 transition-all"
-            >
-              <Trash2 className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* ── Metric Stat Cards ────────────────────────────────── */}
+            {/* ── Metric Stat Cards ────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3.5">
           <div className="p-4 rounded-xl bg-surface-800/80 border border-white/5">
             <div className="flex items-center justify-between text-slate-400 text-xs font-medium">
