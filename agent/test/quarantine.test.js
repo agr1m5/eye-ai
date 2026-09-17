@@ -8,6 +8,7 @@ console.log('--- RUNNING HARDENED QUARANTINE UNIT TESTS ---');
 // 1. Path validation & Hierarchical forbidden roots tests
 console.log('1. Testing validateFilePath security guards...');
 assert.strictEqual(validateFilePath('/tmp/malware.bin').valid, true, 'Valid absolute path should pass');
+assert.strictEqual(validateFilePath('~/.eye/canary.env').valid, true, 'Tilde home path should be expanded and accepted');
 assert.strictEqual(validateFilePath('relative/file.bin').valid, false, 'Relative path must be rejected');
 assert.strictEqual(validateFilePath('/tmp/../etc/shadow').valid, false, 'Path traversal must be rejected');
 assert.strictEqual(validateFilePath('/tmp/foo/../bar').valid, false, 'Path containing .. must be rejected');

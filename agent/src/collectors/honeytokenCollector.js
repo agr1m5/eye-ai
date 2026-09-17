@@ -10,9 +10,10 @@ import os from 'os';
 
 const CANARY_DIR = path.join(os.homedir(), '.eye');
 const CANARY_FILE = path.join(CANARY_DIR, 'canary_aws_keys.env');
+const CANARY_ALIAS = path.join(CANARY_DIR, 'canary.env');
 
 const CANARY_CONTENT = `# ==========================================================
-# RAKSHAK HONEYTOKEN DECOY CANARY — DO NOT MODIFY
+# EYE AI HONEYTOKEN DECOY CANARY — DO NOT MODIFY
 # ==========================================================
 AWS_ACCESS_KEY_ID=AKIAIOSFODNN7EXAMPLE_CANARY
 AWS_SECRET_ACCESS_KEY=wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY
@@ -26,8 +27,9 @@ export function startHoneytokenCollector(onEvent, onError) {
       fs.mkdirSync(CANARY_DIR, { recursive: true });
     }
 
-    // Initialize or restore decoy canary
+    // Initialize or restore decoy canaries
     fs.writeFileSync(CANARY_FILE, CANARY_CONTENT, { encoding: 'utf8', mode: 0o600 });
+    fs.writeFileSync(CANARY_ALIAS, CANARY_CONTENT, { encoding: 'utf8', mode: 0o600 });
 
     let lastAlert = 0;
     const watcher = fs.watch(CANARY_FILE, (eventType) => {
