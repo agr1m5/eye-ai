@@ -24,7 +24,7 @@
 
 **Eye AI** is an enterprise-grade, real-time Security Operations Center (SOC) platform designed to defend infrastructure and endpoints against emerging threats. It combines lightweight, edge-native telemetry collectors with backend correlation engines, interactive threat visualizers, and a private, local or cloud-powered **AI SOC Analyst Copilot**.
 
-Whether monitoring a standalone workstation or a fleet of Linux and macOS servers, Eye AI delivers zero-overhead log processing, instant alert translation, automated incident grouping, active SOAR countermeasures, and executive compliance reporting.
+Whether monitoring a standalone workstation or a fleet of Linux and macOS servers, Eye AI delivers zero-overhead log processing, instant alert translation, automated incident grouping, verified SOAR countermeasures, and executive compliance reporting.
 
 ---
 
@@ -35,13 +35,31 @@ Whether monitoring a standalone workstation or a fleet of Linux and macOS server
 | ⚡ **Live Telemetry Gateway** | Bi-directional WebSocket pipeline streaming events, process diffs, network connections, and system authentication logs in real time. |
 | 🧠 **AI SOC Analyst Copilot** | Multi-turn conversational AI (powered by local **Ollama / Llama 3.2** or OpenAI) providing threat explanations, mitigation guidance, and log forensics. |
 | 🎯 **Automated MITRE ATT&CK Mapping** | Automatically classifies threats against MITRE tactics, techniques, and severity scoring (Critical, High, Medium, Low). |
-| ⚡ **Live Kill-Chain Attack Graph** | 6-stage Lockheed Martin & MITRE ATT&CK progression visualizer with **independent, decoupled stage actions** for surgical defense execution. |
+| ⚡ **Live Kill-Chain Attack Graph** | 6-stage Lockheed Martin & MITRE ATT&CK visualizer with **independent, decoupled stage actions** for surgical defense execution. |
 | 🛡️ **Active SOAR Containment** | Verified endpoint enforcement with zero false reporting: `kill_process` (SIGKILL process tree), `isolate_host` (firewall containment preserving SOC management socket), and `quarantine_file` (safe binary vaulting restricted to 0400). |
 | 🚨 **Incident Correlation & Timeline** | Automatically correlates related security events sharing an entity, PID, or IP into unified incident cases with full audit trails. |
 | 📁 **Forensic Log Importer** | Ingests and extracts indicators of compromise (IoCs) from raw uploads (`auth.log`, `access.log`, `syslog`, JSON). |
-| 🍯 **Honeytoken Deception Defense** | Canary file tripwires detecting unauthorized file access and credential tampering with automated SOAR alerting. |
+| 🍯 **Honeytoken Deception Defense** | Canary credential tripwires in `~/.eye/canary.env` detecting unauthorized file access and credential tampering with automated SOAR alerting. |
+| 📑 **Multi-Tiered Analyst Navigation** | Reorganized hierarchy separating primary daily workflows (Dashboard, Threats, Incidents, Active Defense) from secondary analytical tools. |
 | 📄 **Executive PDF Reporting** | Generates professional, printable compliance and incident summary reports on demand. |
 | 🐧 **Native Linux & macOS Support** | Out-of-the-box shell launchers, Docker Compose stack, and native Linux `systemd` daemon automation. |
+
+---
+
+## ⛓️ 6-Stage Lockheed Martin Cyber Kill-Chain Grid
+
+Eye AI models attacks across the full cyber kill-chain with independent countermeasure controls for each stage:
+
+```
+[01 Recon & Ingress] ➔ [02 Weaponization] ➔ [03 Host Execution] ➔ [04 Priv Escalation] ➔ [05 Defense Evasion] ➔ [06 C2 & Exfiltration]
+```
+
+- **Stage 01 — Recon & Ingress**: Ingress IP tracing, ASN fingerprinting, and threat intelligence geofencing (`trace_ip`).
+- **Stage 02 — Weaponization**: Web attack vector inspection and WAF exploit signature quarantine (`analyze_payload`).
+- **Stage 03 — Host Execution**: Active OS process tree termination via verified SIGKILL (`kill_process`).
+- **Stage 04 — Privilege Escalation**: Sudo session token invalidation and PAM elevation lockouts (`lock_elevation`).
+- **Stage 05 — Defense Evasion**: AWS honeytoken canary tripwire surveillance and binary vaulting (`rearm_honeytoken` / `quarantine_file`).
+- **Stage 06 — C2 & Exfiltration**: Outbound egress restriction isolating the host while preserving the SOC control channel (`isolate_host`).
 
 ---
 
@@ -191,6 +209,23 @@ Eye AI supports **100% offline, private AI threat intelligence** powered by Olla
 
 ---
 
+## 🧪 Testing & Quality Assurance
+
+Run test suites across the monorepo:
+
+```bash
+# Verify agent enforcement mechanisms (SIGKILL verification, iptables/pfctl isolation, quarantine vault)
+npm test --workspace=agent
+
+# Run root-level firewall integration tests (requires root/sudo)
+sudo npm run test:root --workspace=agent
+
+# Verify frontend build and bundle optimization
+npm run build --workspace=client
+```
+
+---
+
 ## 📂 Repository Structure
 
 ```
@@ -198,7 +233,7 @@ Eye AI supports **100% offline, private AI threat intelligence** powered by Olla
 ├── .github/                # GitHub Actions CI workflows & templates
 ├── agent/                  # Endpoint telemetry agent (Linux & macOS sensors)
 │   ├── src/collectors/     # System log, network, process & honeytoken collectors
-│   ├── src/containment/    # Real SOAR enforcement (kill_process, isolation, quarantine)
+│   ├── src/enforcement/    # Real SOAR enforcement (kill_process, isolation, quarantine)
 │   ├── src/detection/      # Regex signature classifiers & brute-force trackers
 │   ├── src/correlation/    # Sliding-window incident correlation engine
 │   └── src/transport/      # Resilient Socket.IO transport client with offline queue
