@@ -10,13 +10,13 @@
  * The `active` state is derived from React Router's `useLocation` so no prop
  * drilling is needed — each link knows whether it's current.
  */
-import { useState } from 'react';
-import { NavLink, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { NavLink, useNavigate, useLocation } from 'react-router-dom';
 import {
   ShieldCheck, LayoutDashboard, Skull, GitBranch,
   MessageSquare, FileText, Upload, Settings, LogOut,
-  Radio, Wifi, WifiOff, Crosshair, Target, ClipboardList, Activity, Zap,
-  Power, Loader2,
+  Wifi, WifiOff, Crosshair, Target, ClipboardList, Activity, Zap,
+  Power, Loader2, ChevronDown, ChevronRight,
 } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '@/context/AuthContext';
@@ -25,27 +25,58 @@ import { authApi } from '@/services/api';
 import { formatDistanceToNow } from 'date-fns';
 
 /* ── Nav link definitions ───────────────────────────────────── */
-const NAV_ITEMS = [
-  { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard'     },
-  { to: '/activity',   icon: Activity,        label: 'Host Activity' },
-  { to: '/threats',    icon: Skull,           label: 'Threats'       },
-  { to: '/incidents',  icon: GitBranch,       label: 'Incidents'     },
+const PRIMARY_ITEMS = [
+  { to: '/dashboard',  icon: LayoutDashboard, label: 'Dashboard'      },
+  { to: '/threats',    icon: Skull,           label: 'Threats'        },
+  { to: '/incidents',  icon: GitBranch,       label: 'Incidents'      },
   { to: '/defense',    icon: Zap,             label: 'Active Defense' },
-  { to: '/chat',       icon: MessageSquare,   label: 'AI Chat'       },
-  { to: '/reports',    icon: FileText,        label: 'Reports'       },
-  { to: '/import',     icon: Upload,          label: 'Log Import'    },
 ];
 
-const INTEL_ITEMS = [
-  { to: '/hunt',       icon: Crosshair,       label: 'Threat Hunt' },
-  { to: '/mitre',      icon: Target,          label: 'MITRE Matrix' },
+const SECONDARY_ITEMS = [
+  { to: '/activity',   icon: Activity,        label: 'Host Activity'  },
+  { to: '/chat',       icon: MessageSquare,   label: 'AI Chat'        },
+  { to: '/reports',    icon: FileText,        label: 'Reports'        },
+  { to: '/import',     icon: Upload,          label: 'Log Import'     },
+  { to: '/hunt',       icon: Crosshair,       label: 'Threat Hunt'    },
+  { to: '/mitre',      icon: Target,          label: 'MITRE Matrix'   },
 ];
 
 export default function Sidebar() {
   const { logout } = useAuth();
   const { agentOnline, agentLastSeen, connected } = useSocket();
   const navigate = useNavigate();
+  const location = useLocation();
   const [toggling, setToggling] = useState(false);
+
+  // Check if current route is inside the secondary items
+  const isSecondaryActive = SECONDARY_ITEMS.some(
+    (item) => location.pathname === item.to || location.pathname.startsWith(`${item.to}/`)
+  );
+
+  const [moreExpanded, setMoreExpanded] = useState(() => {
+    // If user lands directly on a secondary route, auto-expand
+    if (typeof window !== 'undefined' && SECONDARY_ITEMS.some((item) => window.location.pathname === item.to || window.location.pathname.startsWith(`${item.to}/`))) {
+      return true;
+    }
+    const saved = typeof window !== 'undefined' ? localStorage.getItem('eye_sidebar_more_expanded') : null;
+    return saved === 'true';
+  });
+
+  // Auto-expand if user navigates to a secondary route
+  useEffect(() => {
+    if (isSecondaryActive && !moreExpanded) {
+      setMoreExpanded(true);
+      localStorage.setItem('eye_sidebar_more_expanded', 'true');
+    }
+  }, [isSecondaryActive]);
+
+  const toggleMore = () => {
+    setMoreExpanded((prev) => {
+      const next = !prev;
+      localStorage.setItem('eye_sidebar_more_expanded', String(next));
+      return next;
+    });
+  };
 
   const handleToggleAgent = async (forcedState) => {
     if (toggling) return;
@@ -150,8 +181,8 @@ export default function Sidebar() {
 
       {/* ── Primary Navigation ───────────────────────────────── */}
       <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        <p className="section-heading px-2 mb-2">Operations</p>
-        {NAV_ITEMS.map(({ to, icon: Icon, label }) => (
+        {/* Primary Navigation (Always Visible) */}
+        {PRIMARY_ITEMS.map(({ to, icon: Icon, label }) => (
           <NavLink
             key={to}
             to={to}
@@ -164,19 +195,47 @@ export default function Sidebar() {
           </NavLink>
         ))}
 
-        <p className="section-heading px-2 mb-2 mt-4">Intelligence</p>
-        {INTEL_ITEMS.map(({ to, icon: Icon, label }) => (
-          <NavLink
-            key={to}
-            to={to}
-            className={({ isActive }) =>
-              `nav-item ${isActive ? 'active' : ''}`
-            }
+        {/* Secondary Navigation (Collapsible Disclosure) */}
+        <div className="pt-2">
+          <button
+            type="button"
+            onClick={toggleMore}
+            aria-expanded={moreExpanded}
+            aria-controls="secondary-nav"
+            className="w-full flex items-center justify-between px-3 py-2 text-xs font-semibold text-slate-400 hover:text-slate-200 hover:bg-white/5 rounded-lg transition-colors group cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent-400/50"
           >
-            <Icon className="w-4 h-4 shrink-0" />
-            {label}
-          </NavLink>
-        ))}
+            <span className="flex items-center gap-2">
+              <span className="text-[11px] uppercase tracking-wider text-slate-500 group-hover:text-slate-400 font-semibold">
+                More Tools
+              </span>
+              {isSecondaryActive && !moreExpanded && (
+                <span className="w-1.5 h-1.5 rounded-full bg-accent-400 animate-pulse" title="Active destination inside" />
+              )}
+            </span>
+            {moreExpanded ? (
+              <ChevronDown className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 transition-transform" />
+            ) : (
+              <ChevronRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-slate-300 transition-transform" />
+            )}
+          </button>
+
+          {moreExpanded && (
+            <div id="secondary-nav" className="mt-1 space-y-0.5 pl-1 border-l border-white/5 ml-2.5 animate-fade-in">
+              {SECONDARY_ITEMS.map(({ to, icon: Icon, label }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    `nav-item ${isActive ? 'active' : ''}`
+                  }
+                >
+                  <Icon className="w-4 h-4 shrink-0" />
+                  {label}
+                </NavLink>
+              ))}
+            </div>
+          )}
+        </div>
       </nav>
 
       {/* ── Bottom: Audit + Settings + Logout ──────────────── */}
