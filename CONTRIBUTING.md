@@ -19,8 +19,8 @@ We are committed to providing a welcoming, inclusive, and harassment-free enviro
 
 ### 2. Fork and Clone
 ```bash
-git clone https://github.com/agr1m5/log-sage.git
-cd log-sage
+git clone https://github.com/agr1m5/eye-ai.git
+cd eye-ai
 ```
 
 ### 3. Installation & Setup
