@@ -67,6 +67,8 @@ export default function DefensePage() {
       const res = await defenseApi.contain({
         actionType: dispatchType,
         target: dispatchTarget.trim(),
+        pid: dispatchType === 'kill_process' ? Number(dispatchTarget.trim()) : undefined,
+        filePath: dispatchType === 'quarantine_file' ? dispatchTarget.trim() : null,
         reason: dispatchReason.trim() || 'Manual SOAR countermeasure initiated by analyst',
         executedBy: 'analyst',
       });

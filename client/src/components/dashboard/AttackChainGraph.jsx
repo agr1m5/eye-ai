@@ -511,9 +511,16 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
   const handleContainment = async (actionType, target, label) => {
     try {
       setExecutingAction(actionType);
+      const effectiveAction = actionType === 'rearm_honeytoken' ? 'quarantine_file' : actionType;
+      const parsedPid = effectiveAction === 'kill_process'
+        ? (activeChain.pid ? Number(activeChain.pid) : Number(String(target).replace(/[^\d]/g, '')))
+        : undefined;
+
       const res = await defenseApi.contain({
-        actionType: actionType === 'rearm_honeytoken' ? 'quarantine_file' : actionType,
+        actionType: effectiveAction,
         target,
+        pid: parsedPid,
+        expectedProcessName: effectiveAction === 'kill_process' ? (activeChain.processName || null) : null,
         reason: `SOAR Kill-Chain Countermeasure: ${actionType} triggered from Dashboard`,
         incidentId: selectedIncidentId !== 'live_feed' ? selectedIncidentId : null,
         executedBy: 'analyst',
@@ -624,6 +631,7 @@ export default function AttackChainGraph({ onOpenSimulator, onAttackStateChange,
             defenseApi.contain({
               actionType: 'kill_process',
               target: String(simPid),
+              pid: Number(simPid),
               incidentId: currentIncId,
               threatId: currentThrId,
               reason: 'SOAR Autonomous Process Termination (Kill-Chain Mitigated)',

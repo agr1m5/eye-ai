@@ -45,20 +45,43 @@ export async function executeContainment(req, res, next) {
       });
     }
 
+    let numericPid = null;
+    let expectedProcessName = req.body.expectedProcessName || null;
+
+    if (actionType === 'kill_process') {
+      const candidatePid = req.body.pid !== undefined ? req.body.pid : target;
+      // Allow exact numeric PID or "PID: <number>" formatting
+      const cleanedPid = typeof candidatePid === 'string' && candidatePid.trim().startsWith('PID:')
+        ? candidatePid.trim().replace(/^PID:\s*/i, '')
+        : candidatePid;
+
+      numericPid = Number(cleanedPid);
+      if (!Number.isInteger(numericPid) || numericPid <= 0) {
+        return res.status(400).json({
+          status:  'error',
+          message: `Invalid PID: "${candidatePid}". Target must be a positive integer PID for kill_process.`,
+        });
+      }
+    }
+
     // Correlate to an active or relevant Incident
     let incident = null;
+    let threatDoc = null;
     if (incidentId) {
       incident = await Incident.findOne({ _id: incidentId, userId: req.user._id });
     }
-    if (!incident && threatId) {
-      const threatDoc = await Threat.findOne({ _id: threatId, userId: req.user._id });
-      if (threatDoc?.incidentId) {
+    if (threatId) {
+      threatDoc = await Threat.findOne({ _id: threatId, userId: req.user._id });
+      if (!incident && threatDoc?.incidentId) {
         incident = await Incident.findOne({ _id: threatDoc.incidentId, userId: req.user._id });
+      }
+      if (!expectedProcessName && threatDoc?.source?.processName) {
+        expectedProcessName = threatDoc.source.processName;
       }
     }
     if (!incident) {
       const rawTarget = String(target).trim();
-      const cleanNum = Number(rawTarget.replace(/[^\d]/g, ''));
+      const cleanNum = numericPid || Number(rawTarget.replace(/[^\d]/g, ''));
       const ipPattern = rawTarget.match(/\b(?:\d{1,3}\.){3}\d{1,3}\b/)?.[0];
 
       const queryConditions = [];
@@ -75,6 +98,9 @@ export async function executeContainment(req, res, next) {
       if (matchingThreat?.incidentId) {
         incident = await Incident.findOne({ _id: matchingThreat.incidentId, userId: req.user._id });
       }
+      if (!expectedProcessName && matchingThreat?.source?.processName) {
+        expectedProcessName = matchingThreat.source.processName;
+      }
     }
     if (!incident) {
       // Find the most recent open or investigating incident
@@ -84,11 +110,27 @@ export async function executeContainment(req, res, next) {
       }).sort({ createdAt: -1 });
     }
 
+    if (!expectedProcessName && incident) {
+      const incidentThreat = await Threat.findOne({
+        userId: req.user._id,
+        incidentId: incident._id,
+        $or: [
+          ...(numericPid ? [{ 'source.pid': numericPid }] : []),
+          { 'source.processName': { $ne: null } },
+        ],
+      }).sort({ createdAt: -1 });
+      if (incidentThreat?.source?.processName) {
+        expectedProcessName = incidentThreat.source.processName;
+      }
+    }
+
     // Save defense record with status 'active' (in-flight until verified by agent receipt)
     const defenseAction = new DefenseAction({
       userId: req.user._id,
       actionType,
       target: String(target).trim(),
+      pid: numericPid,
+      expectedProcessName,
       filePath: req.body.filePath || null,
       reason: reason || 'SOC containment countermeasure',
       threatId: threatId || null,
@@ -146,6 +188,8 @@ export async function executeContainment(req, res, next) {
           actionId: defenseAction._id,
           actionType,
           target: defenseAction.target,
+          pid: numericPid,
+          expectedProcessName,
           filePath: req.body.filePath || null,
           reason: defenseAction.reason,
           userId: req.user._id.toString(),

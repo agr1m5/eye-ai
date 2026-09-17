@@ -19,7 +19,7 @@ try {
  * Log an OS-level enforcement event to the local audit trail.
  *
  * @param {Object} entry
- * @param {string} entry.actionType - 'isolate_host' | 'release_host' | 'quarantine_file' | 'release_file'
+ * @param {string} entry.actionType - 'kill_process' | 'isolate_host' | 'release_host' | 'quarantine_file' | 'release_file'
  * @param {string} entry.target - Target PID, host, or file path
  * @param {boolean} entry.success - Whether execution succeeded
  * @param {string} [entry.command] - Exact shell command or API executed

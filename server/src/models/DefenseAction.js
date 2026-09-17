@@ -36,6 +36,16 @@ const defenseActionSchema = new mongoose.Schema(
       default: null,
     },
 
+    pid: {
+      type:    Number,
+      default: null,
+    },
+
+    expectedProcessName: {
+      type:    String,
+      default: null,
+    },
+
     status: {
       type:    String,
       enum:    ['active', 'released', 'failed'],

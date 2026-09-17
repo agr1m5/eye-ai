@@ -203,6 +203,7 @@ export default function DashboardPage() {
             await defenseApi.contain({
               actionType,
               target,
+              pid: targetPid ? Number(targetPid) : undefined,
               filePath: targetPath || null,
               threatId: finding._id,
               reason: `Autopilot containment: ${finding.type} (${finding.severity})`,

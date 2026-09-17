@@ -2,6 +2,7 @@ import { io } from "socket.io-client";
 import { config } from "../config.js";
 import { isolateHost, releaseHost } from "../enforcement/isolation.js";
 import { quarantineFile, releaseFile } from "../enforcement/quarantine.js";
+import { killProcess } from "../enforcement/processControl.js";
 
 export class AgentTransport {
   constructor({ onLog = console.log } = {}) {
@@ -86,20 +87,11 @@ export class AgentTransport {
 
       try {
         if (cmd.actionType === 'kill_process') {
-          const match = String(cmd.target).match(/\d+/);
-          if (match) {
-            const pid = parseInt(match[0], 10);
-            try {
-              process.kill(pid, 'SIGKILL');
-              receipt.success = true;
-              receipt.output = `Process PID ${pid} terminated via SIGKILL.`;
-            } catch (kErr) {
-              receipt.output = `Process PID ${pid} not active or permission denied (${kErr.message})`;
-              receipt.success = kErr.code === 'ESRCH'; // ESRCH means process already gone (contained)
-            }
-          } else {
-            receipt.output = `Could not parse PID from target: ${cmd.target}`;
-          }
+          const res = await killProcess(cmd.pid, cmd.expectedProcessName || cmd.expectedName);
+          receipt.success = res.success;
+          receipt.output = res.output;
+          receipt.matchedProcessName = res.matchedProcessName || null;
+          receipt.outcome = res.outcome || null;
         } else if (cmd.actionType === 'isolate_host') {
           const res = await isolateHost();
           receipt.success = res.success;

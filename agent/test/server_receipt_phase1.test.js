@@ -259,15 +259,89 @@ async function run() {
   const incDataSuccess2 = incCheckSuccess2.data?.data?.incident || incCheckSuccess2.data?.data;
   assert.strictEqual(incDataSuccess2.status, 'resolved', 'Incident must resolve on verified success receipt');
   assert.ok(incDataSuccess2.notes?.includes('Host Daemon Verification'), 'Notes must include Host Daemon Verification');
-  console.log('✓ Incident successfully marked resolved upon verified quarantine receipt.');
+  console.log('✓ Incident successfully marked resolved upon verified quarantine receipt.\n');
 
   /* ─────────────────────────────────────────────────────────────
-   * PART 3: REMOVED & UNRECOGNIZED ACTION REJECTION GUARDS
+   * PART 3: KILL_PROCESS VERIFICATION
    * ───────────────────────────────────────────────────────────── */
-  console.log('--- PART 3: REMOVED & UNRECOGNIZED ACTION REJECTION GUARDS ---');
+  console.log('--- PART 3: KILL_PROCESS VERIFICATION ---');
 
-  // 3.1 Controller-level rejection: POST /api/defense/contain with actionType 'block_ip'
-  console.log('3.1 Verifying controller rejects block_ip with HTTP 400...');
+  // 3.1 Verify controller rejects invalid/non-numeric PID with HTTP 400
+  console.log('3.1 Verifying controller rejects invalid non-numeric PID with HTTP 400...');
+  const badPidRes = await post('/api/defense/contain', {
+    actionType: 'kill_process',
+    target: 'malware-process-tree',
+    reason: 'Testing bad PID rejection',
+  });
+  assert.strictEqual(badPidRes.status, 400, 'Controller must reject non-numeric PID with 400');
+  assert.ok(badPidRes.data?.message?.includes('Invalid PID'), 'Message must indicate invalid PID');
+  console.log(`✓ Controller correctly rejected invalid PID: "${badPidRes.data?.message}"`);
+
+  // 3.2 Detonate simulated threat with source PID & processName
+  console.log('3.2 Detonating simulated process injection vector...');
+  const simRes3 = await post('/api/threats/simulate', {
+    type: 'process_injection',
+    severity: 'critical',
+    targetAsset: 'soc-collector-01',
+    description: 'Suspicious memory injection observed in target PID',
+    pid: 98765,
+    processName: 'miner_payload',
+  });
+  const incidentId3 = simRes3.data?.data?.incident?._id;
+  assert.ok(incidentId3, 'Simulated incident 3 must be created');
+
+  // 3.3 Set up listener on agentSocket for agent:command:contain
+  let receivedCommand = null;
+  agentSocket.once('agent:command:contain', (cmd) => {
+    receivedCommand = cmd;
+  });
+
+  // Dispatch kill_process containment
+  console.log('3.3 Dispatching kill_process containment to agent...');
+  const containRes3 = await post('/api/defense/contain', {
+    actionType: 'kill_process',
+    target: 'PID: 98765',
+    incidentId: incidentId3,
+    reason: 'Active process kill countermeasure',
+  });
+  assert.strictEqual(containRes3.status, 200, 'Dispatch must return HTTP 200');
+
+  await new Promise((r) => setTimeout(r, 400));
+  assert.ok(receivedCommand, 'Agent must receive agent:command:contain event');
+  assert.strictEqual(receivedCommand.actionType, 'kill_process', 'actionType must be kill_process');
+  assert.strictEqual(receivedCommand.pid, 98765, 'Command must carry numeric pid');
+  console.log(`✓ Agent received containment dispatch with validated numeric PID: ${receivedCommand.pid}`);
+
+  // 3.4 Simulate verified kill_process receipt from agent
+  console.log('3.4 Emitting verified kill_process receipt from agent...');
+  const actionId3 = containRes3.data?.data?._id || receivedCommand.actionId;
+  agentSocket.emit('agent:contain:receipt', {
+    actionId: actionId3,
+    actionType: 'kill_process',
+    target: 'PID: 98765',
+    pid: 98765,
+    matchedProcessName: 'miner_payload',
+    outcome: 'already_absent',
+    success: true,
+    output: 'Process PID 98765 was not active prior to kill signal (already absent).',
+  });
+
+  await new Promise((r) => setTimeout(r, 600));
+
+  // Verify incident is resolved with verification notes
+  const incCheckSuccess3 = await get(`/api/incidents/${incidentId3}`);
+  const incDataSuccess3 = incCheckSuccess3.data?.data?.incident || incCheckSuccess3.data?.data;
+  assert.strictEqual(incDataSuccess3.status, 'resolved', 'Incident must resolve on verified kill receipt');
+  assert.ok(incDataSuccess3.notes?.includes('Host Daemon Verification'), 'Notes must include Host Daemon Verification');
+  console.log('✓ Incident successfully marked resolved upon verified kill receipt.\n');
+
+  /* ─────────────────────────────────────────────────────────────
+   * PART 4: REMOVED & UNRECOGNIZED ACTION REJECTION GUARDS
+   * ───────────────────────────────────────────────────────────── */
+  console.log('--- PART 4: REMOVED & UNRECOGNIZED ACTION REJECTION GUARDS ---');
+
+  // 4.1 Controller-level rejection: POST /api/defense/contain with actionType 'block_ip'
+  console.log('4.1 Verifying controller rejects block_ip with HTTP 400...');
   const blockIpRes = await post('/api/defense/contain', {
     actionType: 'block_ip',
     target: '198.51.100.99',
@@ -280,14 +354,14 @@ async function run() {
   );
   console.log(`✓ Controller correctly rejected block_ip: "${blockIpRes.data?.message}"`);
 
-  // 3.2 Agent-level rejection: agent emits success:false for unsupported actionType
-  console.log('3.2 Verifying agent emits success:false for unsupported/removed action...');
-  const simRes3 = await post('/api/threats/simulate', {
+  // 4.2 Agent-level rejection: agent emits success:false for unsupported actionType
+  console.log('4.2 Verifying agent emits success:false for unsupported/removed action...');
+  const simRes4 = await post('/api/threats/simulate', {
     type: 'privilege_escalation',
     severity: 'high',
     description: 'Testing unsupported action receipt',
   });
-  const incidentId3 = simRes3.data?.data?.incident?._id;
+  const incidentId4 = simRes4.data?.data?.incident?._id;
 
   const fakeActionId = 'unsupported_test_' + Date.now();
   let receivedReceipt = null;
@@ -321,9 +395,9 @@ async function run() {
   assert.ok(receivedReceipt.output.includes('Unsupported actionType'), 'Output must specify unsupported action');
 
   // Verify incident remained open
-  const incCheck3 = await get(`/api/incidents/${incidentId3}`);
-  const incData3 = incCheck3.data?.data?.incident || incCheck3.data?.data;
-  assert.strictEqual(incData3.status, 'open', 'Incident must remain open on unsupported action receipt');
+  const incCheck4 = await get(`/api/incidents/${incidentId4}`);
+  const incData4 = incCheck4.data?.data?.incident || incCheck4.data?.data;
+  assert.strictEqual(incData4.status, 'open', 'Incident must remain open on unsupported action receipt');
   console.log('✓ Agent correctly rejected unsupported action with success:false; incident remained open.\n');
 
   clientSocket.disconnect();
