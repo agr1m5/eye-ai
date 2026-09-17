@@ -79,3 +79,38 @@ sudo systemctl restart eye-agent
 | `MAX_BUFFERED_FINDINGS` | `500` | Maximum offline queue capacity before FIFO eviction |
 | `BRUTE_FORCE_WINDOW_MINUTES` | `10` | Rolling time window for failed authentication grouping |
 | `CORRELATION_WINDOW_MINUTES` | `10` | Window for binding related findings into an incident |
+
+---
+
+## 🧪 Testing & Verification
+
+### Standard Unit Tests (Unprivileged / CI Safe)
+To execute the automated unit test suite covering process control, isolation resolution, quarantine vault operations, and server receipts:
+```bash
+npm test
+```
+
+### Root-Privileged Firewall Integration Test (`isolate_host`)
+Because real `iptables` and `pfctl` rule insertion requires administrator/root privileges, an independent kernel integration test is available at `test/integration/isolation.root.test.js`.
+
+> [!CAUTION]
+> **SAFETY PRECAUTIONS**:
+> 1. **DEDICATED VM OR CONTAINER ONLY**: Never execute this test on production hosts or machines you are logged into remotely over SSH (packet filtering containment could sever your administrative session).
+> 2. **ENVIRONMENT VARIABLE GUARD**: The script strictly refuses to execute unless `EYE_ALLOW_FIREWALL_INTEGRATION_TEST=1` is explicitly provided.
+> 3. **EMERGENCY RESTORATION**: The test takes pre-test firewall snapshots and registers emergency signal and exception cleanup handlers to ensure the host firewall is restored upon exit.
+
+To execute the root integration test:
+```bash
+sudo EYE_ALLOW_FIREWALL_INTEGRATION_TEST=1 node test/integration/isolation.root.test.js
+```
+or via the npm script alias:
+```bash
+sudo EYE_ALLOW_FIREWALL_INTEGRATION_TEST=1 npm run test:integration:root
+```
+
+The test validates:
+- [x] Correct kernel rule structure and default egress `DROP` insertion.
+- [x] Real socket packet drops on non-whitelisted outbound destinations (e.g. `1.1.1.1:80`).
+- [x] Functional outbound connectivity to the SOC backend control channel during isolation.
+- [x] Independent post-release absence of isolation rules (`iptables` / `pfctl`).
+- [x] Clean restoration of outbound network traffic to baseline.

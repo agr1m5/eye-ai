@@ -6,7 +6,9 @@
   "type": "module",
   "scripts": {
     "start": "node src/index.js",
-    "authorize": "node src/consent.js --grant"
+    "authorize": "node src/consent.js --grant",
+    "test": "node test/processControl.test.js && node test/isolation.test.js && node test/quarantine.test.js",
+    "test:integration:root": "node test/integration/isolation.root.test.js"
   },
   "license": "ISC",
   "dependencies": {
